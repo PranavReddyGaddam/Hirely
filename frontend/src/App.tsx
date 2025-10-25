@@ -8,7 +8,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
 import InterviewSetup from "./pages/InterviewSetup";
 import InterviewSession from "./pages/InterviewSession";
-import InterviewReport from "./components/InterviewReport";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import Profile from "./pages/Profile";
 import MacBookMockup from "./components/MacBookMockup";
 import { useAuth } from "./hooks/useAuth";
@@ -339,7 +339,7 @@ function App() {
             path="/interview/:interviewId/report" 
             element={
               <ProtectedRoute>
-                <InterviewReport />
+                <AnalyticsDashboard />
               </ProtectedRoute>
             } 
           />

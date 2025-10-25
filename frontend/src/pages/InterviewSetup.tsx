@@ -213,6 +213,7 @@ export default function InterviewSetup() {
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
+                        <option value={1}>1 Question (Quick Practice)</option>
                         <option value={3}>3 Questions</option>
                         <option value={5}>5 Questions</option>
                         <option value={7}>7 Questions</option>

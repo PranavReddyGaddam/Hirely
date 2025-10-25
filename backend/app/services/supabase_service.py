@@ -369,6 +369,7 @@ class SupabaseService:
             return None
             
         try:
+            logger.info(f"[Supabase] Fetching interview {interview_id} for user {user_id}")
             # Get interview with questions and responses
             response = self.client.table("interviews").select("""
                 *,
@@ -376,16 +377,21 @@ class SupabaseService:
                 responses(*)
             """).eq("id", interview_id).eq("user_id", user_id).execute()
             
+            logger.info(f"[Supabase] Query response: {len(response.data) if response.data else 0} results")
+            
             if response.data:
                 interview_data = response.data[0]
+                logger.info(f"[Supabase] Interview found: {interview_data.get('title')}")
                 # Convert questions and responses to proper format
                 interview_data['questions'] = interview_data.get('questions', [])
                 interview_data['responses'] = interview_data.get('responses', [])
                 return InterviewResponse(**interview_data)
+            
+            logger.warning(f"[Supabase] Interview {interview_id} not found for user {user_id}")
             return None
             
         except Exception as e:
-            logger.error(f"Error fetching interview {interview_id}: {e}")
+            logger.error(f"Error fetching interview {interview_id}: {e}", exc_info=True)
             return None
     
     async def update_interview(self, interview_id: str, interview_data: Dict[str, Any]) -> Optional[InterviewResponse]:
@@ -581,3 +587,195 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error getting recent progress: {e}")
             return None
+    
+    # -----------------------
+    # Storage methods for video files
+    # -----------------------
+    async def upload_interview_video(
+        self, 
+        user_id: str, 
+        interview_id: str, 
+        video_data: bytes, 
+        file_extension: str = "webm"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Upload interview video to Supabase Storage (object storage).
+        
+        Args:
+            user_id: User ID (used for folder organization)
+            interview_id: Interview ID
+            video_data: Video file bytes
+            file_extension: File extension (webm, mp4, etc.)
+            
+        Returns:
+            Dict with storage_path and public_url, or None if failed
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return None
+        
+        try:
+            import time
+            timestamp = int(time.time())
+            
+            # Storage path: user_id/interview_id_timestamp.webm
+            storage_path = f"{user_id}/{interview_id}_{timestamp}.{file_extension}"
+            
+            logger.info(f"Uploading video to storage: {storage_path}")
+            logger.info(f"Video size: {len(video_data) / 1024 / 1024:.2f} MB")
+            
+            # Upload to Supabase Storage bucket
+            response = self.client.storage.from_("interview-videos").upload(
+                path=storage_path,
+                file=video_data,
+                file_options={
+                    "content-type": f"video/{file_extension}",
+                    "cache-control": "3600",
+                    "upsert": "true"  # Overwrite if exists
+                }
+            )
+            
+            logger.info(f"Upload response: {response}")
+            
+            # Get public URL (signed URL for private buckets)
+            signed_url = self.client.storage.from_("interview-videos").create_signed_url(
+                path=storage_path,
+                expires_in=31536000  # 1 year expiry
+            )
+            
+            if signed_url:
+                public_url = signed_url.get('signedURL')
+                logger.info(f"Video uploaded successfully: {storage_path}")
+                
+                return {
+                    "storage_path": storage_path,
+                    "public_url": public_url,
+                    "size_bytes": len(video_data)
+                }
+            else:
+                logger.error("Failed to generate signed URL")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error uploading video to storage: {e}")
+            return None
+    
+    async def get_video_signed_url(self, storage_path: str, expires_in: int = 3600) -> Optional[str]:
+        """
+        Get a signed URL for accessing a video from Supabase Storage.
+        
+        Args:
+            storage_path: Storage path (user_id/video_filename.webm)
+            expires_in: URL expiry time in seconds (default 1 hour)
+            
+        Returns:
+            Signed URL string or None if failed
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return None
+        
+        try:
+            signed_url = self.client.storage.from_("interview-videos").create_signed_url(
+                path=storage_path,
+                expires_in=expires_in
+            )
+            
+            if signed_url:
+                return signed_url.get('signedURL')
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error creating signed URL: {e}")
+            return None
+    
+    async def download_video(self, storage_path: str) -> Optional[bytes]:
+        """
+        Download video bytes from Supabase Storage.
+        
+        Args:
+            storage_path: Storage path (user_id/video_filename.webm)
+            
+        Returns:
+            Video bytes or None if failed
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return None
+        
+        try:
+            response = self.client.storage.from_("interview-videos").download(storage_path)
+            
+            if response:
+                logger.info(f"Downloaded video from storage: {storage_path}")
+                return response
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error downloading video: {e}")
+            return None
+    
+    async def delete_video(self, storage_path: str) -> bool:
+        """
+        Delete video from Supabase Storage.
+        
+        Args:
+            storage_path: Storage path (user_id/video_filename.webm)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return False
+        
+        try:
+            response = self.client.storage.from_("interview-videos").remove([storage_path])
+            logger.info(f"Deleted video from storage: {storage_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting video: {e}")
+            return False
+    
+    async def update_interview_video_metadata(
+        self,
+        interview_id: str,
+        storage_path: str,
+        public_url: str,
+        size_bytes: int
+    ) -> bool:
+        """
+        Update interview record with video storage metadata.
+        
+        Args:
+            interview_id: Interview ID
+            storage_path: Storage path in Supabase
+            public_url: Signed URL for accessing video
+            size_bytes: Video file size
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return False
+        
+        try:
+            from datetime import datetime
+            
+            response = self.client.table("interviews").update({
+                "video_storage_path": storage_path,
+                "video_url": public_url,
+                "video_size_bytes": size_bytes,
+                "video_uploaded_at": datetime.utcnow().isoformat()
+            }).eq("id", interview_id).execute()
+            
+            if response.data:
+                logger.info(f"Updated interview {interview_id} with video metadata")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error updating interview video metadata: {e}")
+            return False

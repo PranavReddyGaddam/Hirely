@@ -173,9 +173,8 @@ class CVProcessor:
             # Process posture
             posture_data = {}
             if pose_results.pose_landmarks:
-                posture_data = self.posture_analyzer.analyze_posture(
-                    pose_results.pose_landmarks,
-                    (h, w)
+                posture_data = self.posture_analyzer.analyze(
+                    pose_results.pose_landmarks
                 )
                 metrics.update(posture_data)
             else:

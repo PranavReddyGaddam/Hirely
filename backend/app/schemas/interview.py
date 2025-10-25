@@ -114,6 +114,11 @@ class InterviewResponse(BaseModel):
     completed_at: Optional[datetime] = None
     questions: List[QuestionResponse] = []
     responses: List[ResponseResponse] = []
+    # Video metadata fields (optional)
+    video_storage_path: Optional[str] = None
+    video_url: Optional[str] = None
+    video_size_bytes: Optional[int] = None
+    video_uploaded_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True

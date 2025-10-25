@@ -14,16 +14,8 @@ import numpy as np
 from typing import Dict, Tuple, List, Optional
 from collections import deque, Counter
 
-try:
-    import os
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    from deepface import DeepFace
-    DEEPFACE_AVAILABLE = True
-    print("[INFO] DeepFace loaded successfully")
-except Exception as e:
-    DEEPFACE_AVAILABLE = False
-    print(f"[WARNING] DeepFace not available: {e}")
-    print("[INFO] Using landmark-based emotion detection fallback")
+# DeepFace is not used - using landmark-based detection only
+DEEPFACE_AVAILABLE = False
 
 from app.cv.utils.landmark_utils import (
     calculate_eye_aspect_ratio,
@@ -169,19 +161,15 @@ class DeepFaceExpressionDetector:
             face_roi = self._extract_face_roi(face_landmarks, frame, image_width, image_height)
             
             if face_roi is not None and face_roi.size > 0:
-                # Detect emotion using DeepFace or fallback
-                if DEEPFACE_AVAILABLE:
-                    emotion, confidence, emotion_scores = self._detect_emotion_deepface(face_roi)
-                else:
-                    # Fallback: landmark-based emotion detection
-                    emotion, confidence, emotion_scores = self._detect_emotion_landmarks(
-                        self.smoothed_ear, self.smoothed_mar
-                    )
+                # Use landmark-based emotion detection (DeepFace removed)
+                emotion, confidence, emotion_scores = self._detect_emotion_landmarks(
+                    self.smoothed_ear, self.smoothed_mar
+                )
                 
-                # Debug: Print raw DeepFace detection (only every 30 frames to avoid spam)
+                # Debug: Print emotion detection (only every 30 frames to avoid spam)
                 if self.frame_skip_count % 30 == 0:
                     top_3_emotions = sorted(emotion_scores.items(), key=lambda x: x[1], reverse=True)[:3]
-                    print(f"[DeepFace] Raw: {emotion} ({confidence:.2f}) | Top 3: {', '.join([f'{e}:{s:.0f}%' for e,s in top_3_emotions])}")
+                    print(f"[Emotion] Raw: {emotion} ({confidence:.2f}) | Top 3: {', '.join([f'{e}:{s:.0f}%' for e,s in top_3_emotions])}")
                 
                 # Only trust emotions with sufficient confidence (>40%)
                 # Below this threshold, default to calm/neutral
@@ -304,41 +292,14 @@ class DeepFaceExpressionDetector:
         """
         Detect emotion using DeepFace.
         
+        DEPRECATED: This method is not used anymore.
+        Always fallback to landmark-based detection.
+        
         Returns:
             Tuple of (emotion_name, confidence, all_scores)
         """
-        if not DEEPFACE_AVAILABLE:
-            # Fallback to landmarks if DeepFace not available
-            return self._detect_emotion_landmarks(self.smoothed_ear, self.smoothed_mar)
-        
-        try:
-            # Analyze emotion with DeepFace
-            result = DeepFace.analyze(
-                face_roi,
-                actions=['emotion'],
-                enforce_detection=False,  # We already have face from MediaPipe
-                detector_backend=self.detector_backend,
-                silent=True
-            )
-            
-            # Handle list or dict result
-            if isinstance(result, list):
-                result = result[0]
-            
-            # Extract emotion data
-            dominant_emotion = result['dominant_emotion']
-            emotion_scores = result['emotion']
-            confidence = emotion_scores[dominant_emotion] / 100.0
-            
-            return dominant_emotion, confidence, emotion_scores
-            
-        except Exception as e:
-            # Fallback on error
-            print(f"[DeepFaceExpression] Error in emotion detection: {e}")
-            return 'neutral', 0.5, {
-                'angry': 0, 'disgust': 0, 'fear': 0, 'happy': 0,
-                'sad': 0, 'surprise': 0, 'neutral': 50
-            }
+        # Always use landmark-based detection (DeepFace removed)
+        return self._detect_emotion_landmarks(self.smoothed_ear, self.smoothed_mar)
     
     def _extract_face_roi(self, landmarks, frame: np.ndarray, 
                          w: int, h: int) -> Optional[np.ndarray]:

@@ -16,6 +16,9 @@ supabase==2.8.0
 groq==0.4.1
 openai>=1.50.0
 
+# AWS S3
+boto3==1.35.0
+
 # Audio and speech (Deepgram removed for now)
 pydub==0.25.1
 requests==2.31.0
@@ -25,6 +28,13 @@ requests==2.31.0
 mediapipe==0.10.14
 opencv-python==4.8.1.78
 numpy==1.26.4
+
+# Deep Learning for emotion detection (DeepFace) - REMOVED
+# Using landmark-based emotion detection instead
+# tensorflow-macos==2.16.2; platform_system == "Darwin"
+# tensorflow==2.16.2; platform_system != "Darwin"
+# protobuf==4.25.3
+# deepface==0.0.93
 
 # Report generation
 reportlab==4.0.7

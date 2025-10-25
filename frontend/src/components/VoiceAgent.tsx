@@ -8,6 +8,7 @@ interface VoiceAgentProps {
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (error: string) => void;
+  onConversationIdReady?: (conversationId: string) => void;
   className?: string;
 }
 
@@ -18,6 +19,7 @@ export default function VoiceAgent({
   onStart,
   onEnd,
   onError,
+  onConversationIdReady,
   className = ''
 }: VoiceAgentProps) {
   const [isConnected, setIsConnected] = useState(false);
@@ -32,6 +34,9 @@ export default function VoiceAgent({
   const isInitializingRef = useRef<boolean>(false);
   const isCleaningUpRef = useRef<boolean>(false);
   const hasInitializedRef = useRef<boolean>(false);
+  
+  // Smart interruption tracking refs (for future client-side implementation)
+  const silenceTimerRef = useRef<number | null>(null);
 
   // Effect to handle conversation lifecycle based on isActive
   useEffect(() => {
@@ -113,6 +118,10 @@ export default function VoiceAgent({
         if (id) {
           conversationIdRef.current = id;
           console.log('[VoiceAgent] Conversation ID:', id);
+          // Notify parent component
+          if (onConversationIdReady) {
+            onConversationIdReady(id);
+          }
         }
       } catch (err) {
         console.log('[VoiceAgent] Conversation ID not yet available');
@@ -129,7 +138,20 @@ export default function VoiceAgent({
     }
   };
 
+  // Note: Smart interruption logic is handled by the backend agent's prompt configuration
+  // The agent is instructed to:
+  // - Stay silent for 5-10s (normal thinking)
+  // - Gentle nudge at 12-15s
+  // - Offer help at 20-25s
+  // - Active help at 30s+
+
   const cleanupConversation = async () => {
+    // Clear any pending timers
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    
     // Prevent multiple simultaneous cleanups
     if (isCleaningUpRef.current) {
       console.log('[VoiceAgent] Already cleaning up, skipping');

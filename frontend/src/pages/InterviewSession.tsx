@@ -7,8 +7,6 @@ import SystemDesignCanvas from '../components/SystemDesignCanvas';
 import SystemDesignChat from '../components/SystemDesignChat';
 import VoiceAgent from '../components/VoiceAgent';
 import { voiceAgentService, type InterviewVoiceAgent } from '../services/voiceAgentService';
-import CVMetricsOverlay from '../components/CVMetricsOverlay';
-import { cvTrackingService, type CVMetrics } from '../services/CVTrackingService';
 
 export default function InterviewSession() {
   const { interviewId } = useParams<{ interviewId: string }>();
@@ -33,10 +31,12 @@ export default function InterviewSession() {
   const [isVoiceAgentActive, setIsVoiceAgentActive] = useState(false);
   const [voiceAgentError, setVoiceAgentError] = useState<string | null>(null);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
-  // CV Tracking state
-  const [cvMetrics, setCvMetrics] = useState<CVMetrics | null>(null);
-  const [cvTrackingActive, setCvTrackingActive] = useState(false);
+  // Video Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -52,11 +52,9 @@ export default function InterviewSession() {
     }
 
     return () => {
-      // Cleanup CV tracking
-      if (cvTrackingService.isActive()) {
-        cvTrackingService.endSession().catch(err => {
-          console.error('Error stopping CV tracking on unmount:', err);
-        });
+      // Stop video recording if active
+      if (isRecording && mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
       }
       // Cleanup media stream on component unmount
       if (mediaStreamRef.current) {
@@ -68,8 +66,8 @@ export default function InterviewSession() {
   // Auto-create voice agent when interview starts
   useEffect(() => {
     if (interviewStatus === 'preparing' && !voiceAgent && !hasPlayedIntro && interviewId && interviewData) {
-      console.log('Auto-creating voice agent for interview intro...');
-      createVoiceAgentForIntro();
+      console.log('Auto-creating voice agent for full interview...');
+      createVoiceAgentForInterview();
     }
   }, [interviewStatus, voiceAgent, hasPlayedIntro, interviewId, interviewData]);
 
@@ -152,6 +150,25 @@ export default function InterviewSession() {
     };
   }, [interviewStatus, currentQuestion, interviewType]);
 
+  // Auto-start/stop video recording based on interview status
+  useEffect(() => {
+    if (interviewStatus === 'answering' && !isRecording && cameraActive) {
+      // Start recording when first question answering begins
+      console.log('[Video Recording] Interview answering started, beginning video recording...');
+      startVideoRecording();
+    } else if (interviewStatus === 'completed' && isRecording) {
+      // Stop recording when interview completes
+      console.log('[Video Recording] Interview completed, stopping video recording...');
+      stopVideoRecording();
+      
+      // Also stop voice agent when interview completes
+      if (isVoiceAgentActive) {
+        console.log('[Voice Agent] Interview completed, stopping voice agent...');
+        stopVoiceAgent();
+      }
+    }
+  }, [interviewStatus, isRecording, cameraActive, isVoiceAgentActive]);
+
   const fetchInterviewDetails = async () => {
     try {
       const token = localStorage.getItem('hirely_token');
@@ -222,46 +239,145 @@ export default function InterviewSession() {
     }
   };
 
-  const startCVTracking = async () => {
-    if (!interviewId || !videoRef.current) {
-      console.warn('[CV] Cannot start tracking - missing interview ID or video element');
+  // CV analysis will be done post-interview on the saved video
+  // No real-time CV tracking during interview
+
+  /**
+   * Start recording the interview video to local storage
+   * Records ONLY video (no audio) to prevent echo/resonance
+   */
+  const startVideoRecording = () => {
+    if (!mediaStreamRef.current || !interviewId) {
+      console.warn('[Video Recording] Cannot start - missing media stream or interview ID');
       return;
     }
 
     try {
-      console.log('[CV] Starting CV tracking...');
+      // Create a NEW stream with ONLY video tracks (no audio to prevent echo)
+      const videoTracks = mediaStreamRef.current.getVideoTracks();
+      const videoOnlyStream = new MediaStream();
       
-      // CRITICAL: Set callback BEFORE starting session to catch all frames
-      cvTrackingService.setMetricsCallback((metrics) => {
-        console.log('[CV] Metrics update received:', metrics);
-        setCvMetrics(metrics);
+      videoTracks.forEach(track => {
+        videoOnlyStream.addTrack(track);
       });
-      
-      // Start session (this begins frame capture immediately)
-      await cvTrackingService.startSession(interviewId, videoRef.current);
-      
-      setCvTrackingActive(true);
-      console.log('[CV] CV tracking started successfully');
+
+      console.log('[Video Recording] Created video-only stream (no audio to prevent echo)');
+
+      // Check browser support
+      if (!MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        console.warn('[Video Recording] VP9 not supported, falling back to VP8');
+      }
+
+      // Create MediaRecorder with video-only stream
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm;codecs=vp8';
+
+      const mediaRecorder = new MediaRecorder(videoOnlyStream, {
+        mimeType,
+        videoBitsPerSecond: 2500000 // 2.5 Mbps for good quality
+      });
+
+      // Reset chunks array
+      recordedChunksRef.current = [];
+
+      // Handle data available event
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+          console.log(`[Video Recording] Chunk recorded: ${event.data.size} bytes`);
+        }
+      };
+
+      // Handle recording stop event
+      mediaRecorder.onstop = () => {
+        console.log('[Video Recording] Recording stopped, saving video...');
+        saveRecordedVideo();
+      };
+
+      // Handle errors
+      mediaRecorder.onerror = (event: any) => {
+        console.error('[Video Recording] Recording error:', event.error);
+      };
+
+      // Start recording (capture data every 1 second)
+      mediaRecorder.start(1000);
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+
+      console.log(`[Video Recording] Started recording with ${mimeType}`);
+      console.log(`[Video Recording] Interview ID: ${interviewId}`);
     } catch (error) {
-      console.error('[CV] Failed to start CV tracking:', error);
-      // Don't block interview if CV fails
+      console.error('[Video Recording] Error starting recording:', error);
     }
   };
 
-  const stopCVTracking = async () => {
-    if (!cvTrackingService.isActive()) {
-      return null;
+  /**
+   * Stop recording and trigger download
+   */
+  const stopVideoRecording = () => {
+    if (!isRecording || !mediaRecorderRef.current) {
+      console.warn('[Video Recording] No active recording to stop');
+      return;
     }
 
     try {
-      console.log('[CV] Stopping CV tracking...');
-      const result = await cvTrackingService.endSession();
-      setCvTrackingActive(false);
-      console.log('[CV] CV tracking stopped, analysis ready');
-      return result;
+      if (mediaRecorderRef.current.state === 'recording') {
+        console.log('[Video Recording] Stopping recording...');
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }
     } catch (error) {
-      console.error('[CV] Error stopping CV tracking:', error);
-      return null;
+      console.error('[Video Recording] Error stopping recording:', error);
+    }
+  };
+
+  /**
+   * Upload recorded video to Supabase Storage (silently, no download)
+   */
+  const saveRecordedVideo = async () => {
+    if (recordedChunksRef.current.length === 0) {
+      console.warn('[Video Recording] No recorded chunks to save');
+      return;
+    }
+
+    try {
+      // Create blob from recorded chunks
+      const videoBlob = new Blob(recordedChunksRef.current, {
+        type: 'video/webm'
+      });
+
+      console.log(`[Video Recording] Created video blob: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
+      console.log('[Video Recording] Uploading to Supabase Storage...');
+
+      // Import video upload service
+      const { videoUploadService } = await import('../services/VideoUploadService');
+
+      // Upload to Supabase Storage (no download, silent upload)
+      const uploadResult = await videoUploadService.uploadInterviewVideo(
+        interviewId!,
+        videoBlob,
+        (progress) => {
+          console.log(`[Video Upload] ${progress.percentage}% (${(progress.loaded / 1024 / 1024).toFixed(2)} MB / ${(progress.total / 1024 / 1024).toFixed(2)} MB)`);
+        }
+      );
+
+      console.log('[Video Recording] ✅ Video uploaded successfully to Supabase Storage');
+      console.log('[Video Recording] Storage path:', uploadResult.storage_path);
+      console.log('[Video Recording] Video URL:', uploadResult.video_url);
+      console.log('[Video Recording] Size:', uploadResult.size_mb, 'MB');
+      
+      // Clear recorded chunks
+      recordedChunksRef.current = [];
+      
+      // Store upload result for later use (e.g., CV analysis)
+      localStorage.setItem(`interview_${interviewId}_video_url`, uploadResult.video_url);
+      localStorage.setItem(`interview_${interviewId}_storage_path`, uploadResult.storage_path);
+      
+    } catch (error) {
+      console.error('[Video Recording] Error uploading video:', error);
+      // Don't throw - we don't want to break the interview flow if upload fails
+      // The user can always re-upload later
     }
   };
 
@@ -283,7 +399,7 @@ export default function InterviewSession() {
             throw new Error('getUserMedia is not supported in this browser');
           }
           
-          // Request camera access
+          // Request camera access with echo cancellation
           console.log('Calling getUserMedia...');
           const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
@@ -291,7 +407,11 @@ export default function InterviewSession() {
               height: { ideal: 720 },
               facingMode: 'user'
             }, 
-            audio: true 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
           });
           
           console.log('Camera stream obtained successfully:', stream);
@@ -319,8 +439,7 @@ export default function InterviewSession() {
                 videoRef.current?.play().then(() => {
                   console.log('Video started playing successfully');
                   setCameraActive(true);
-                  // Start CV tracking after video is playing
-                  startCVTracking();
+                  // Video recording will auto-start when answering begins (via useEffect)
                 }).catch((playErr) => {
                   console.error('Error playing video:', playErr);
                   // Don't set error here, camera preview is not critical
@@ -401,24 +520,27 @@ export default function InterviewSession() {
         } else {
           // No more questions, interview completed
           setInterviewStatus('completed');
-          // Stop CV tracking and get analysis
-          const cvAnalysis = await stopCVTracking();
-          if (cvAnalysis) {
-            console.log('[CV] Analysis complete:', cvAnalysis);
-            // Store analysis in sessionStorage for report page
-            sessionStorage.setItem('cv_analysis', JSON.stringify(cvAnalysis));
-          }
+          
+          // Stop recording (upload will happen automatically)
+          stopVideoRecording();
+          
+          // Trigger comprehensive analysis (backend will wait for video URL)
+          await triggerInterviewAnalysis();
+          
+          // Redirect to report page (analysis will run in background)
           navigate(`/interview/${interviewId}/report`); // Redirect to report page
         }
       } else if (response.status === 404) {
         // No more questions available - interview completed
         setInterviewStatus('completed');
-        // Stop CV tracking and get analysis
-        const cvAnalysis = await stopCVTracking();
-        if (cvAnalysis) {
-          console.log('[CV] Analysis complete:', cvAnalysis);
-          sessionStorage.setItem('cv_analysis', JSON.stringify(cvAnalysis));
-        }
+        
+        // Stop recording (upload will happen automatically)
+        stopVideoRecording();
+        
+        // Trigger comprehensive analysis (backend will wait for video URL)
+        await triggerInterviewAnalysis();
+        
+        // Redirect to report page
         navigate(`/interview/${interviewId}/report`); // Redirect to report page
       } else {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -564,8 +686,8 @@ export default function InterviewSession() {
   };
 
   // Voice Agent functions
-  const createVoiceAgentForIntro = async () => {
-    console.log('Creating voice agent for intro...', { interviewId, interviewType, interviewData });
+  const createVoiceAgentForInterview = async () => {
+    console.log('Creating voice agent for full interview...', { interviewId, interviewType, interviewData });
     
     if (!interviewId || !interviewData) {
       console.error('No interview ID or data available');
@@ -575,7 +697,7 @@ export default function InterviewSession() {
     setVoiceAgentError(null);
     
     try {
-      console.log('Calling voiceAgentService.createInterviewAgent for intro...');
+      console.log('Calling voiceAgentService.createInterviewAgent...');
       const agent = await voiceAgentService.createInterviewAgent({
         interviewId,
         questionId: currentQuestion?.id,
@@ -585,44 +707,43 @@ export default function InterviewSession() {
         candidateData: interviewData // Pass real interview data
       });
       
-      console.log('Voice agent created successfully for intro:', agent);
+      console.log('Voice agent created successfully:', agent);
       setVoiceAgent(agent);
       
-      // Auto-start the voice agent for intro
+      // Auto-start the voice agent and keep it active throughout
       setTimeout(() => {
         if (agent) {
-          console.log('Auto-starting voice agent for intro...');
+          console.log('Auto-starting voice agent for entire interview...');
           setIsVoiceAgentActive(true);
+          setHasPlayedIntro(true); // Mark intro as played
           
-          // Fallback timeout - if intro doesn't end naturally after 30 seconds, load questions
+          // Load first question after a brief delay
           setTimeout(() => {
-            if (isVoiceAgentActive && !hasPlayedIntro) {
-              console.log('Voice intro timeout - loading questions automatically...');
-              stopVoiceAgent();
-            }
-          }, 30000); // 30 second timeout
+            fetchNextQuestion().catch(error => {
+              console.error('Error loading first question:', error);
+              setError('Failed to load first question');
+            });
+          }, 2000); // 2 second delay after intro starts
         }
       }, 1000); // Small delay to ensure agent is ready
       
     } catch (error) {
-      console.error('Error creating voice agent for intro:', error);
+      console.error('Error creating voice agent:', error);
       setVoiceAgentError(error instanceof Error ? error.message : 'Failed to create voice agent');
+      
+      // If voice agent fails, still load the first question
+      setHasPlayedIntro(true);
+      fetchNextQuestion().catch(err => {
+        console.error('Error loading first question after agent failure:', err);
+        setError('Failed to load first question');
+      });
     }
   };
 
 
   const stopVoiceAgent = async () => {
+    console.log('Stopping voice agent (interview complete)...');
     setIsVoiceAgentActive(false);
-    setHasPlayedIntro(true);
-    
-    // Now load the first question after intro is complete
-    console.log('Voice intro finished, loading first question...');
-    try {
-      await fetchNextQuestion();
-    } catch (error) {
-      console.error('Error loading first question after intro:', error);
-      setError('Failed to load first question');
-    }
   };
 
   const handleVoiceAgentError = async (error: string) => {
@@ -637,6 +758,56 @@ export default function InterviewSession() {
     } catch (fetchError) {
       console.error('Error loading first question after voice agent failure:', fetchError);
       setError('Failed to load first question');
+    }
+  };
+
+  const handleConversationIdReady = (convId: string) => {
+    console.log('[InterviewSession] Conversation ID received:', convId);
+    setConversationId(convId);
+    // Store in localStorage as backup
+    if (interviewId) {
+      localStorage.setItem(`interview_${interviewId}_conversation_id`, convId);
+    }
+  };
+
+  const triggerInterviewAnalysis = async () => {
+    if (!interviewId) return;
+    
+    try {
+      const token = localStorage.getItem('hirely_token');
+      if (!token) {
+        console.error('[Analysis] No auth token found');
+        return;
+      }
+
+      // Get conversation ID from state or localStorage
+      const convId = conversationId || localStorage.getItem(`interview_${interviewId}_conversation_id`);
+      
+      console.log('[Analysis] Triggering comprehensive analysis...');
+      console.log('[Analysis] Interview ID:', interviewId);
+      console.log('[Analysis] Conversation ID:', convId || 'none');
+
+      const response = await fetch('http://localhost:8000/api/v1/interview-analysis/start', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          interview_id: interviewId,
+          conversation_id: convId
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[Analysis] ✅ Analysis started:', result);
+      } else {
+        console.error('[Analysis] Failed to start analysis:', response.status);
+      }
+    } catch (err) {
+      console.error('[Analysis] Error triggering analysis:', err);
+      // Don't block navigation if analysis fails to start
     }
   };
 
@@ -812,9 +983,6 @@ export default function InterviewSession() {
                 }}
               ></video>
               
-              {/* CV Metrics Overlay */}
-              <CVMetricsOverlay metrics={cvMetrics} show={cvTrackingActive} />
-              
               {/* Camera status indicator */}
               <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
                 ● Recording
@@ -874,30 +1042,19 @@ export default function InterviewSession() {
         </div>
       </div>
       
-      {/* Voice Agent - Completely Invisible */}
-      {voiceAgent && isVoiceAgentActive && !hasPlayedIntro && (
+      {/* Voice Agent - Completely Invisible, Active Throughout Interview */}
+      {voiceAgent && isVoiceAgentActive && (
         <div className="fixed inset-0 z-0 opacity-0 pointer-events-none">
           <VoiceAgent
             agentId={voiceAgent.agentId}
             agentName={voiceAgent.agentName}
             isActive={isVoiceAgentActive}
-            onStart={() => console.log('Voice agent started for intro')}
+            onStart={() => console.log('Voice agent started for interview')}
             onEnd={stopVoiceAgent}
             onError={handleVoiceAgentError}
+            onConversationIdReady={handleConversationIdReady}
             className="w-full"
           />
-        </div>
-      )}
-      
-      {/* Skip to Interview Button - Only shows during intro */}
-      {voiceAgent && isVoiceAgentActive && !hasPlayedIntro && (
-        <div className="fixed top-4 right-4 z-50">
-          <button
-            onClick={stopVoiceAgent}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Skip to Interview
-          </button>
         </div>
       )}
       

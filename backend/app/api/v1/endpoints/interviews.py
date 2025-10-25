@@ -99,9 +99,16 @@ async def get_interview(
     """Get specific interview by ID"""
     interview_service = InterviewService()
     try:
+        print(f"[GET /interviews/{interview_id}] Current user: {current_user.id}")
         interview = await interview_service.get_interview(interview_id, current_user.id)
+        if not interview:
+            print(f"[GET /interviews/{interview_id}] Interview not found for user {current_user.id}")
+            raise HTTPException(status_code=404, detail="Interview not found")
         return interview
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[GET /interviews/{interview_id}] Error: {e}")
         raise HTTPException(status_code=404, detail="Interview not found")
 
 @router.post("/{interview_id}/upload")

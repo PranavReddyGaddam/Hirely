@@ -158,7 +158,17 @@ CONVERSATION FLOW:
 - Listen actively to responses
 - Provide appropriate follow-up questions
 
-Remember: You're conducting a professional interview. Be natural, authentic, and supportive while maintaining interview standards. Focus on making the candidate feel comfortable and prepared for the interview ahead."""
+SILENCE HANDLING (SMART INTERRUPTIONS):
+- If candidate pauses for 5-10 seconds: Stay silent (normal thinking time)
+- If candidate pauses for 12-15 seconds: Gently acknowledge with "Take your time" or "I'm listening"
+- If candidate pauses for 20-25 seconds: Offer gentle help like "Would you like me to rephrase the question?" or "Is there a specific aspect you'd like to explore first?"
+- If candidate pauses for 30+ seconds: Actively help by breaking down the question or offering examples
+- Always distinguish between thinking pauses and being stuck
+- Never interrupt while candidate is actively speaking (wait for natural pauses)
+- If candidate says "um", "uh", or "let me think", give them space
+- Only interrupt if it's clear they need help, not just processing
+
+Remember: You're conducting a professional interview. Be natural, authentic, and supportive while maintaining interview standards. Your goal is to help candidates perform their best, not to trick them or make them uncomfortable."""
         
         return prompt
     
@@ -426,3 +436,69 @@ Are you ready to begin? Let's start with our first question."""
         except httpx.HTTPError as e:
             print(f"Error deleting agent: {e}")
             return False
+    
+    async def get_conversation_transcript(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get transcript of a completed ElevenLabs conversation.
+        
+        Args:
+            conversation_id: Conversation ID from ElevenLabs
+            
+        Returns:
+            Dict with transcript data including text, timestamps, and speaker info
+        """
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/convai/conversations/{conversation_id}",
+                    headers=self.headers
+                )
+                response.raise_for_status()
+                conversation_data = response.json()
+                
+                # Extract transcript from conversation data
+                # ElevenLabs returns conversation with messages/turns
+                transcript_text = ""
+                messages = []
+                
+                if 'transcript' in conversation_data:
+                    # If direct transcript is available (could be string or list)
+                    raw_transcript = conversation_data['transcript']
+                    if isinstance(raw_transcript, list):
+                        # Join list items into single string
+                        transcript_text = " ".join(str(item) for item in raw_transcript)
+                    else:
+                        transcript_text = str(raw_transcript)
+                elif 'messages' in conversation_data:
+                    # Build transcript from messages
+                    for msg in conversation_data['messages']:
+                        speaker = msg.get('role', 'unknown')
+                        text = msg.get('message', '')
+                        timestamp = msg.get('timestamp', '')
+                        
+                        messages.append({
+                            'speaker': speaker,
+                            'text': text,
+                            'timestamp': timestamp
+                        })
+                        
+                        transcript_text += f"{text} "
+                
+                return {
+                    'conversation_id': conversation_id,
+                    'full_transcript': transcript_text.strip(),
+                    'messages': messages,
+                    'duration': conversation_data.get('duration', 0),
+                    'created_at': conversation_data.get('created_at', '')
+                }
+                
+        except httpx.HTTPStatusError as e:
+            print(f"Error fetching conversation transcript: {e}")
+            print(f"Status code: {e.response.status_code}")
+            return None
+        except httpx.HTTPError as e:
+            print(f"Error fetching conversation transcript: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error fetching transcript: {e}")
+            return None
