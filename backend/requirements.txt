@@ -1,0 +1,49 @@
+# Core web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.6
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Databases
+chromadb==0.4.15
+# Use newer supabase version compatible with httpx 0.27.2
+supabase==2.8.0
+
+# LLM + embeddings
+groq==0.4.1
+openai>=1.50.0
+
+# Audio and speech (Deepgram removed for now)
+pydub==0.25.1
+requests==2.31.0
+
+# Facial expression analysis
+# These versions are compatible with Python 3.10–3.12 and macOS (Apple Silicon/Intel)
+mediapipe==0.10.14
+opencv-python==4.8.1.78
+numpy==1.26.4
+
+# Report generation
+reportlab==4.0.7
+jinja2==3.1.2
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.66.1
+pydantic>=2.10.0
+pydantic-settings==2.2.0
+httpx==0.27.2
+email-validator==2.2.0
+# Let supabase manage supafunc version (2.7.4 requires <0.6.0)
+
+# Development & Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Web scraping (Crawl4AI dependencies)
+crawl4ai==0.7.6
+beautifulsoup4==4.12.2
+playwright>=1.49.0

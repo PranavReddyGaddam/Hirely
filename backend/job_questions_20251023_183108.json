@@ -1,0 +1,118 @@
+{
+  "job_url": "https://jobs.apple.com/en-us/details/200627361-0836/engineer-evolve-an-apple-services-rotation-program-engineering-new-grads?team=SFTWR",
+  "scraped_at": "2025-10-23T18:31:08.152712",
+  "job_info": {
+    "required_skills": [
+      "Python",
+      "Java",
+      "Javascript",
+      "React",
+      "Angular",
+      "Node.Js",
+      "Sql",
+      "Aws",
+      "Kubernetes",
+      "Machine Learning",
+      "Ai",
+      "Leadership"
+    ],
+    "technologies": [
+      "Python",
+      "Java",
+      "Javascript",
+      "React",
+      "Angular",
+      "Node.Js",
+      "Spring",
+      "Sql",
+      "Aws",
+      "Kubernetes",
+      "Macos",
+      "Html",
+      "Css",
+      "Rest"
+    ],
+    "experience_level": "Senior Leaderspay",
+    "education": "Bachelor",
+    "location": "Work Locations (3)",
+    "job_type": "Full-Time",
+    "salary_range": "Not specified",
+    "responsibilities": [],
+    "qualifications": []
+  },
+  "technical_questions": [
+    {
+      "question": "Explain how you would implement a Python solution for [specific problem]?",
+      "category": "Technical",
+      "difficulty": "Medium",
+      "skill_focus": "Python",
+      "expected_answer_type": "Code/Explanation"
+    },
+    {
+      "question": "How would you design a scalable system using Python?",
+      "category": "Technical",
+      "difficulty": "Hard",
+      "skill_focus": "System Design",
+      "expected_answer_type": "Design"
+    },
+    {
+      "question": "Describe your experience with Java and how you would optimize performance?",
+      "category": "Technical",
+      "difficulty": "Medium",
+      "skill_focus": "Java",
+      "expected_answer_type": "Explanation"
+    },
+    {
+      "question": "Walk me through how you would debug a production issue in a Javascript?",
+      "category": "Technical",
+      "difficulty": "Medium",
+      "skill_focus": "Debugging",
+      "expected_answer_type": "Process/Explanation"
+    },
+    {
+      "question": "How would you ensure code quality and maintainability in a Java project?",
+      "category": "Technical",
+      "difficulty": "Medium",
+      "skill_focus": "Code Quality",
+      "expected_answer_type": "Best Practices"
+    }
+  ],
+  "behavioral_questions": [
+    {
+      "question": "Tell me about a time when you had to learn a new technology quickly for a project. How did you approach it?",
+      "category": "Behavioral",
+      "difficulty": "Medium",
+      "skill_focus": "Learning/Adaptability",
+      "expected_answer_type": "STAR Method Example"
+    },
+    {
+      "question": "Describe a situation where you had to work with a difficult team member. How did you handle it?",
+      "category": "Behavioral",
+      "difficulty": "Medium",
+      "skill_focus": "Teamwork/Conflict Resolution",
+      "expected_answer_type": "STAR Method Example"
+    },
+    {
+      "question": "Give me an example of a time when you had to meet a tight deadline. What was your approach?",
+      "category": "Behavioral",
+      "difficulty": "Medium",
+      "skill_focus": "Time Management",
+      "expected_answer_type": "STAR Method Example"
+    },
+    {
+      "question": "Tell me about a project where you had to take initiative to solve a problem. What was the outcome?",
+      "category": "Behavioral",
+      "difficulty": "Medium",
+      "skill_focus": "Initiative/Problem Solving",
+      "expected_answer_type": "STAR Method Example"
+    },
+    {
+      "question": "Describe a time when you had to explain a complex technical concept to a non-technical audience. How did you approach it?",
+      "category": "Behavioral",
+      "difficulty": "Medium",
+      "skill_focus": "Communication",
+      "expected_answer_type": "STAR Method Example"
+    }
+  ],
+  "total_questions": 10
+}
