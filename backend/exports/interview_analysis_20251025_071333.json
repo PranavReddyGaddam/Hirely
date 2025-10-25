@@ -1,0 +1,159 @@
+{
+  "session_info": {
+    "session_id": "20251025_071333",
+    "start_time": "2025-10-25T07:13:33.503012",
+    "duration_seconds": 100.301943,
+    "total_frames_analyzed": 9,
+    "avg_fps": 0.08972906935611408
+  },
+  "emotions": {
+    "expression_distribution": {
+      "calm": 100.0,
+      "genuine_smile": 0.0,
+      "tense": 0.0,
+      "frowning": 0.0,
+      "surprised": 0.0,
+      "sad": 0.0
+    },
+    "dominant_emotion": "calm",
+    "emotional_stability": {
+      "avg_confidence": 0.0,
+      "confidence_consistency": 0.0,
+      "score": "stable"
+    },
+    "smile_analysis": {
+      "avg_smile_intensity": 0.0,
+      "genuine_smile_percentage": 0.0,
+      "recommendation": "increase_positive_expressions"
+    }
+  },
+  "facial_metrics": {
+    "eye_contact": {
+      "avg_eye_openness_left": 0.0,
+      "avg_eye_openness_right": 0.0,
+      "avg_eye_openness_both": 0.0,
+      "symmetry": "balanced"
+    },
+    "blink_pattern": {
+      "total_blinks": 0,
+      "avg_blink_rate_per_minute": 0.0,
+      "normal_range": "15-20 bpm",
+      "status": "drowsy"
+    },
+    "mouth_activity": {
+      "avg_mouth_openness": 0.0,
+      "talking_indicator": "minimal"
+    }
+  },
+  "head_pose": {
+    "gaze_direction": {
+      "avg_yaw_degrees": 0.0,
+      "avg_pitch_degrees": 0.0,
+      "avg_roll_degrees": 0.0,
+      "direction_distribution": {
+        "center": 9
+      }
+    },
+    "camera_focus": {
+      "looking_at_camera_percentage": 0.0,
+      "avg_deviation_from_center": 0.0,
+      "recommendation": "improve_eye_contact"
+    },
+    "head_stability": {
+      "yaw_variability": 0.0,
+      "pitch_variability": 0.0,
+      "score": "stable"
+    }
+  },
+  "postures": {
+    "posture_distribution": {
+      "upright_relaxed": 0.0,
+      "engaged_forward_lean": 0.0,
+      "slouching": 0.0,
+      "leaning_back": 0.0,
+      "facing_away": 0.0,
+      "poor_alignment": 0.0
+    },
+    "dominant_posture": "unknown",
+    "body_angles": {
+      "avg_neck_angle_degrees": 0.0,
+      "avg_torso_angle_degrees": 0.0,
+      "ideal_neck_range": "10-30 degrees",
+      "ideal_torso_range": "5-20 degrees"
+    },
+    "posture_quality": {
+      "good_posture_percentage": 0.0,
+      "needs_improvement": false,
+      "recommendation": "maintain"
+    }
+  },
+  "gestures": {
+    "face_touching": {
+      "total_occurrences": 0,
+      "percentage_of_time": 0.0,
+      "status": "acceptable",
+      "recommendation": "maintain"
+    },
+    "hand_fidgeting": {
+      "percentage_of_time": 0.0,
+      "status": "acceptable",
+      "recommendation": "maintain"
+    },
+    "excessive_gesturing": {
+      "percentage_of_time": 0.0,
+      "status": "acceptable"
+    },
+    "overall_gesture_quality": {
+      "controlled_percentage": 100.0,
+      "score": "good"
+    }
+  },
+  "stress": {
+    "stress_distribution": {
+      "normal": 0.0,
+      "moderate_stress": 0.0,
+      "high_stress": 0.0,
+      "drowsy": 0.0
+    },
+    "dominant_stress_level": "unknown",
+    "stress_indicators": {
+      "avg_blink_rate": 0.0,
+      "rapid_blinking_percentage": 0.0,
+      "fidgeting_percentage": 0.0
+    },
+    "stress_management": {
+      "calm_percentage": 0.0,
+      "needs_relaxation": false,
+      "recommendation": "maintain"
+    }
+  },
+  "attention": {
+    "overall_engagement": {
+      "avg_attention_score": 0.68,
+      "max_attention_score": 0.68,
+      "min_attention_score": 0.68,
+      "consistency": 0.0
+    },
+    "engagement_breakdown": {
+      "engaged_percentage": 0.0,
+      "distracted_percentage": 0.0,
+      "neutral_percentage": 100.0
+    },
+    "focus_quality": {
+      "camera_focus_percentage": 0.0,
+      "attention_lapses": 0,
+      "recommendation": "improve_focus"
+    },
+    "alert_summary": {
+      "total_alerts": 0,
+      "avg_alerts_per_minute": 0.0
+    }
+  },
+  "overall_interview_score": {
+    "attention_score": 0.68,
+    "posture_score": 0.0,
+    "expression_score": 1.0,
+    "gesture_score": 1.0,
+    "overall_score": 68.0
+  }
+}

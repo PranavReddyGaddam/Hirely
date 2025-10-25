@@ -1,0 +1,15 @@
+# CV Analysis Dependencies
+# Compatible versions tested for macOS ARM64 (Apple Silicon)
+
+# Core CV libraries
+opencv-python==4.8.1.78
+mediapipe==0.10.14
+
+# Deep Learning (compatible versions for Apple Silicon)
+tensorflow-macos==2.15.0; platform_system == "Darwin"
+tensorflow==2.15.0; platform_system != "Darwin"
+protobuf==4.25.3
+numpy==1.26.4
+
+# DeepFace and dependencies
+deepface==0.0.93

@@ -7,6 +7,8 @@ import SystemDesignCanvas from '../components/SystemDesignCanvas';
 import SystemDesignChat from '../components/SystemDesignChat';
 import VoiceAgent from '../components/VoiceAgent';
 import { voiceAgentService, type InterviewVoiceAgent } from '../services/voiceAgentService';
+import CVMetricsOverlay from '../components/CVMetricsOverlay';
+import { cvTrackingService, type CVMetrics } from '../services/CVTrackingService';
 
 export default function InterviewSession() {
   const { interviewId } = useParams<{ interviewId: string }>();
@@ -32,6 +34,10 @@ export default function InterviewSession() {
   const [voiceAgentError, setVoiceAgentError] = useState<string | null>(null);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
 
+  // CV Tracking state
+  const [cvMetrics, setCvMetrics] = useState<CVMetrics | null>(null);
+  const [cvTrackingActive, setCvTrackingActive] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -46,6 +52,12 @@ export default function InterviewSession() {
     }
 
     return () => {
+      // Cleanup CV tracking
+      if (cvTrackingService.isActive()) {
+        cvTrackingService.endSession().catch(err => {
+          console.error('Error stopping CV tracking on unmount:', err);
+        });
+      }
       // Cleanup media stream on component unmount
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
@@ -210,6 +222,49 @@ export default function InterviewSession() {
     }
   };
 
+  const startCVTracking = async () => {
+    if (!interviewId || !videoRef.current) {
+      console.warn('[CV] Cannot start tracking - missing interview ID or video element');
+      return;
+    }
+
+    try {
+      console.log('[CV] Starting CV tracking...');
+      
+      // CRITICAL: Set callback BEFORE starting session to catch all frames
+      cvTrackingService.setMetricsCallback((metrics) => {
+        console.log('[CV] Metrics update received:', metrics);
+        setCvMetrics(metrics);
+      });
+      
+      // Start session (this begins frame capture immediately)
+      await cvTrackingService.startSession(interviewId, videoRef.current);
+      
+      setCvTrackingActive(true);
+      console.log('[CV] CV tracking started successfully');
+    } catch (error) {
+      console.error('[CV] Failed to start CV tracking:', error);
+      // Don't block interview if CV fails
+    }
+  };
+
+  const stopCVTracking = async () => {
+    if (!cvTrackingService.isActive()) {
+      return null;
+    }
+
+    try {
+      console.log('[CV] Stopping CV tracking...');
+      const result = await cvTrackingService.endSession();
+      setCvTrackingActive(false);
+      console.log('[CV] CV tracking stopped, analysis ready');
+      return result;
+    } catch (error) {
+      console.error('[CV] Error stopping CV tracking:', error);
+      return null;
+    }
+  };
+
   const startInterviewSession = async () => {
     setInterviewStatus('loading');
     setError(null);
@@ -264,6 +319,8 @@ export default function InterviewSession() {
                 videoRef.current?.play().then(() => {
                   console.log('Video started playing successfully');
                   setCameraActive(true);
+                  // Start CV tracking after video is playing
+                  startCVTracking();
                 }).catch((playErr) => {
                   console.error('Error playing video:', playErr);
                   // Don't set error here, camera preview is not critical
@@ -344,11 +401,24 @@ export default function InterviewSession() {
         } else {
           // No more questions, interview completed
           setInterviewStatus('completed');
+          // Stop CV tracking and get analysis
+          const cvAnalysis = await stopCVTracking();
+          if (cvAnalysis) {
+            console.log('[CV] Analysis complete:', cvAnalysis);
+            // Store analysis in sessionStorage for report page
+            sessionStorage.setItem('cv_analysis', JSON.stringify(cvAnalysis));
+          }
           navigate(`/interview/${interviewId}/report`); // Redirect to report page
         }
       } else if (response.status === 404) {
         // No more questions available - interview completed
         setInterviewStatus('completed');
+        // Stop CV tracking and get analysis
+        const cvAnalysis = await stopCVTracking();
+        if (cvAnalysis) {
+          console.log('[CV] Analysis complete:', cvAnalysis);
+          sessionStorage.setItem('cv_analysis', JSON.stringify(cvAnalysis));
+        }
         navigate(`/interview/${interviewId}/report`); // Redirect to report page
       } else {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -741,8 +811,12 @@ export default function InterviewSession() {
                   setCameraActive(true);
                 }}
               ></video>
+              
+              {/* CV Metrics Overlay */}
+              <CVMetricsOverlay metrics={cvMetrics} show={cvTrackingActive} />
+              
               {/* Camera status indicator */}
-              <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+              <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
                 ● Recording
               </div>
                   {/* Fallback message if camera doesn't work */}
