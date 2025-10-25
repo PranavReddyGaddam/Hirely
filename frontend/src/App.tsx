@@ -10,6 +10,7 @@ import InterviewSetup from "./pages/InterviewSetup";
 import InterviewSession from "./pages/InterviewSession";
 import InterviewReport from "./components/InterviewReport";
 import Profile from "./pages/Profile";
+import MacBookMockup from "./components/MacBookMockup";
 import { useAuth } from "./hooks/useAuth";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
@@ -115,22 +116,16 @@ function HomePage() {
               </div>
             </div>
 
-            {/* Right Content - Video Demo */}
+            {/* Right Content - MacBook Mockup with Video */}
             <div className="hidden lg:block relative h-[600px]">
               <div className="absolute inset-0 flex items-center justify-center">
-                {/* Video Demo - Clean Video Only */}
-                <div className="relative w-[600px] h-[400px]">
-                  <video
-                    className="w-full h-full object-contain rounded-2xl"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  >
-                    <source src="/Interview Clip 2.mp4" type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
+                {/* MacBook Mockup with Video Playing Inside */}
+                <MacBookMockup
+                  videoSrc="/Interview Clip 2.mp4"
+                  autoPlay={true}
+                  loop={true}
+                  muted={true}
+                />
               </div>
             </div>
           </div>
