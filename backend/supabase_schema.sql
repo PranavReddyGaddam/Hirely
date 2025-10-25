@@ -303,6 +303,115 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- System Design tables
+
+-- Screenshots table for storing canvas screenshots
+CREATE TABLE IF NOT EXISTS public.screenshots (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    interview_id UUID REFERENCES public.interviews(id) ON DELETE CASCADE NOT NULL,
+    question_id UUID REFERENCES public.questions(id) ON DELETE CASCADE NOT NULL,
+    image_data TEXT NOT NULL, -- Base64 encoded image data
+    timestamp BIGINT NOT NULL, -- Unix timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on screenshots table
+ALTER TABLE public.screenshots ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see screenshots for their own interviews
+CREATE POLICY "Users can view screenshots for own interviews" ON public.screenshots
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = screenshots.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can insert screenshots for own interviews" ON public.screenshots
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = screenshots.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+-- Progress table for storing canvas progress data
+CREATE TABLE IF NOT EXISTS public.progress (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    interview_id UUID REFERENCES public.interviews(id) ON DELETE CASCADE NOT NULL,
+    question_id UUID REFERENCES public.questions(id) ON DELETE CASCADE NOT NULL,
+    progress_data JSONB NOT NULL, -- Canvas state, object count, etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on progress table
+ALTER TABLE public.progress ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see progress for their own interviews
+CREATE POLICY "Users can view progress for own interviews" ON public.progress
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = progress.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can insert progress for own interviews" ON public.progress
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = progress.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+-- Chat messages table for AI conversations during system design
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    interview_id UUID REFERENCES public.interviews(id) ON DELETE CASCADE NOT NULL,
+    question_id UUID REFERENCES public.questions(id) ON DELETE CASCADE NOT NULL,
+    user_message TEXT NOT NULL,
+    ai_response TEXT NOT NULL,
+    context TEXT DEFAULT 'system_design',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on chat_messages table
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see chat messages for their own interviews
+CREATE POLICY "Users can view chat messages for own interviews" ON public.chat_messages
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = chat_messages.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can insert chat messages for own interviews" ON public.chat_messages
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interviews 
+            WHERE interviews.id = chat_messages.interview_id 
+            AND interviews.user_id = auth.uid()
+        )
+    );
+
+-- Create indexes for system design tables
+CREATE INDEX IF NOT EXISTS idx_screenshots_interview_id ON public.screenshots(interview_id);
+CREATE INDEX IF NOT EXISTS idx_screenshots_question_id ON public.screenshots(question_id);
+CREATE INDEX IF NOT EXISTS idx_screenshots_timestamp ON public.screenshots(timestamp);
+CREATE INDEX IF NOT EXISTS idx_progress_interview_id ON public.progress(interview_id);
+CREATE INDEX IF NOT EXISTS idx_progress_question_id ON public.progress(question_id);
+CREATE INDEX IF NOT EXISTS idx_progress_created_at ON public.progress(created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_interview_id ON public.chat_messages(interview_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_question_id ON public.chat_messages(question_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON public.chat_messages(created_at);
+
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;

@@ -27,7 +27,12 @@ class InterviewService:
         """Initialize interview service."""
         self.supabase_service = SupabaseService()
         self.groq_service = GroqService()
-        self.chroma_service = ChromaService()
+        # Make ChromaService optional to avoid connection errors
+        try:
+            self.chroma_service = ChromaService()
+        except Exception as e:
+            logger.warning(f"ChromaService initialization failed: {e}. Continuing without ChromaDB.")
+            self.chroma_service = None
         # Use class-level storage for active interviews
         self.active_interviews = InterviewService._active_interviews
     
@@ -680,3 +685,169 @@ class InterviewService:
         except Exception as e:
             logger.error(f"Error submitting answer: {e}")
             raise Exception(f"Failed to submit answer: {str(e)}")
+    
+    async def save_screenshot(
+        self,
+        interview_id: str,
+        screenshot_data: dict,
+        user_id: str
+    ) -> str:
+        """
+        Save screenshot from system design canvas.
+        
+        Args:
+            interview_id: Interview ID
+            screenshot_data: Screenshot data including image_data, timestamp
+            user_id: User ID for authorization
+            
+        Returns:
+            str: Screenshot ID
+        """
+        try:
+            # Verify interview exists and user has access
+            interview = await self.supabase_service.get_interview(interview_id, user_id)
+            if not interview:
+                raise Exception("Interview not found or unauthorized access")
+            
+            # Generate unique screenshot ID
+            screenshot_id = str(uuid.uuid4())
+            
+            # Store screenshot data in Supabase
+            screenshot_record = {
+                "id": screenshot_id,
+                "interview_id": interview_id,
+                "question_id": screenshot_data.get("question_id"),
+                "image_data": screenshot_data.get("image_data"),
+                "timestamp": screenshot_data.get("timestamp"),
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            # Insert into screenshots table (we'll need to create this table)
+            result = await self.supabase_service.insert_screenshot(screenshot_record)
+            
+            logger.info(f"Screenshot saved for interview {interview_id}: {screenshot_id}")
+            return screenshot_id
+            
+        except Exception as e:
+            logger.error(f"Error saving screenshot: {e}")
+            raise Exception(f"Failed to save screenshot: {str(e)}")
+    
+    async def save_progress(
+        self,
+        interview_id: str,
+        progress_data: dict,
+        user_id: str
+    ) -> str:
+        """
+        Save progress data from system design canvas.
+        
+        Args:
+            interview_id: Interview ID
+            progress_data: Progress data including canvas state, object count, etc.
+            user_id: User ID for authorization
+            
+        Returns:
+            str: Progress ID
+        """
+        try:
+            # Verify interview exists and user has access
+            interview = await self.supabase_service.get_interview(interview_id, user_id)
+            if not interview:
+                raise Exception("Interview not found or unauthorized access")
+            
+            # Generate unique progress ID
+            progress_id = str(uuid.uuid4())
+            
+            # Store progress data in Supabase
+            progress_record = {
+                "id": progress_id,
+                "interview_id": interview_id,
+                "question_id": progress_data.get("question_id"),
+                "progress_data": progress_data.get("progress_data"),
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            # Insert into progress table (we'll need to create this table)
+            result = await self.supabase_service.insert_progress(progress_record)
+            
+            logger.info(f"Progress saved for interview {interview_id}: {progress_id}")
+            return progress_id
+            
+        except Exception as e:
+            logger.error(f"Error saving progress: {e}")
+            raise Exception(f"Failed to save progress: {str(e)}")
+    
+    async def chat_with_ai(
+        self,
+        interview_id: str,
+        chat_data: dict,
+        user_id: str
+    ) -> str:
+        """
+        Chat with AI during system design.
+        
+        Args:
+            interview_id: Interview ID
+            chat_data: Chat data including message and context
+            user_id: User ID for authorization
+            
+        Returns:
+            str: AI response
+        """
+        try:
+            # Verify interview exists and user has access
+            interview = await self.supabase_service.get_interview(interview_id, user_id)
+            if not interview:
+                raise Exception("Interview not found or unauthorized access")
+            
+            # Get the current question for context
+            question_id = chat_data.get("question_id")
+            message = chat_data.get("message")
+            context = chat_data.get("context", "system_design")
+            
+            # Get recent progress data for context
+            recent_progress = await self.supabase_service.get_recent_progress(interview_id, question_id)
+            
+            # Create AI prompt with context
+            prompt = f"""
+            You are an AI assistant helping with a system design interview. 
+            
+            Current question: {question_id}
+            User message: {message}
+            Context: {context}
+            
+            Recent design progress: {recent_progress}
+            
+            Provide helpful feedback, suggestions, or answer questions about the system design.
+            Be encouraging but constructive. Focus on:
+            - Architecture patterns
+            - Scalability considerations
+            - Data flow and consistency
+            - Performance optimization
+            - Best practices
+            
+            Keep responses concise and actionable.
+            """
+            
+            # Get AI response using Groq service
+            ai_response = await self.groq_service.generate_response(prompt)
+            
+            # Store chat message in database
+            chat_record = {
+                "id": str(uuid.uuid4()),
+                "interview_id": interview_id,
+                "question_id": question_id,
+                "user_message": message,
+                "ai_response": ai_response,
+                "context": context,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            await self.supabase_service.insert_chat_message(chat_record)
+            
+            logger.info(f"AI chat response generated for interview {interview_id}")
+            return ai_response
+            
+        except Exception as e:
+            logger.error(f"Error in AI chat: {e}")
+            raise Exception(f"Failed to get AI response: {str(e)}")

@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     VAPI_API_KEY: Optional[str] = None
     VAPI_PHONE_NUMBER: Optional[str] = None
     
+    # ElevenLabs
+    ELEVENLABS_API_KEY: Optional[str] = None
+    
     # Supabase
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None

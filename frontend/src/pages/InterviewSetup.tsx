@@ -58,6 +58,9 @@ export default function InterviewSetup() {
 
       if (response.ok) {
         const interview = await response.json();
+        // Save interview type to localStorage for fallback
+        localStorage.setItem(`interview_${interview.id}_type`, form.interview_type);
+        console.log('Saved interview type to localStorage:', form.interview_type);
         // Navigate to the interview session with the generated questions
         navigate(`/interview/${interview.id}`);
       } else {

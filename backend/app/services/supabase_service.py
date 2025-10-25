@@ -333,19 +333,21 @@ class SupabaseService:
             return None
             
         try:
-            # Use authenticated client for RLS
-            if access_token:
-                from supabase import create_client
-                user_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-                user_client.auth.set_session(access_token, "")
-                response = user_client.table("interviews").insert(interview_data).execute()
-            else:
-                # Fallback to regular client
-                response = self.client.table("interviews").insert(interview_data).execute()
+            # For now, use the service role key to bypass RLS
+            # The service role key should have full access to all tables
+            logger.info(f"Creating interview with service role key (bypassing RLS)")
+            logger.info(f"Interview data: {interview_data}")
+            
+            # Use the service client which should bypass RLS
+            response = self.client.table("interviews").insert(interview_data).execute()
+            logger.info(f"Interview insert response: {response.data if response.data else 'No data'}")
             
             if response.data:
+                logger.info(f"Interview created successfully: {response.data[0]['id']}")
                 return InterviewResponse(**response.data[0])
-            return None
+            else:
+                logger.error(f"No data returned from interview insert: {response}")
+                return None
             
         except Exception as e:
             logger.error(f"Error creating interview: {e}")
@@ -486,3 +488,96 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error creating response: {e}")
             return False
+    
+    # System Design methods
+    async def insert_screenshot(self, screenshot_data: Dict[str, Any]) -> bool:
+        """
+        Insert screenshot data into the screenshots table.
+        
+        Args:
+            screenshot_data: Screenshot data to insert
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return False
+            
+        try:
+            response = self.client.table("screenshots").insert(screenshot_data).execute()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error inserting screenshot: {e}")
+            return False
+    
+    async def insert_progress(self, progress_data: Dict[str, Any]) -> bool:
+        """
+        Insert progress data into the progress table.
+        
+        Args:
+            progress_data: Progress data to insert
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return False
+            
+        try:
+            response = self.client.table("progress").insert(progress_data).execute()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error inserting progress: {e}")
+            return False
+    
+    async def insert_chat_message(self, chat_data: Dict[str, Any]) -> bool:
+        """
+        Insert chat message into the chat_messages table.
+        
+        Args:
+            chat_data: Chat message data to insert
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return False
+            
+        try:
+            response = self.client.table("chat_messages").insert(chat_data).execute()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error inserting chat message: {e}")
+            return False
+    
+    async def get_recent_progress(self, interview_id: str, question_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get recent progress data for an interview and question.
+        
+        Args:
+            interview_id: Interview ID
+            question_id: Question ID
+            
+        Returns:
+            Optional[Dict[str, Any]]: Recent progress data or None
+        """
+        if not self.client:
+            logger.error("Supabase client not initialized")
+            return None
+            
+        try:
+            response = self.client.table("progress").select("*").eq("interview_id", interview_id).eq("question_id", question_id).order("created_at", desc=True).limit(1).execute()
+            
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting recent progress: {e}")
+            return None

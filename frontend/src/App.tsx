@@ -10,6 +10,7 @@ import InterviewSetup from "./pages/InterviewSetup";
 import InterviewSession from "./pages/InterviewSession";
 import InterviewReport from "./components/InterviewReport";
 import Profile from "./pages/Profile";
+import VoiceCall from "./pages/VoiceCall";
 import { useAuth } from "./hooks/useAuth";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
@@ -353,6 +354,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/voice-call" 
+            element={
+              <ProtectedRoute>
+                <VoiceCall />
               </ProtectedRoute>
             } 
           />

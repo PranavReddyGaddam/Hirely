@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, interviews, analysis, chroma, scraper
+from app.api.v1.endpoints import auth, users, interviews, analysis, chroma, scraper, voice, elevenlabs
 
 api_router = APIRouter()
 
@@ -10,4 +10,5 @@ api_router.include_router(interviews.router, prefix="/interviews", tags=["interv
 api_router.include_router(analysis.router, prefix="/analysis", tags=["analysis"])
 api_router.include_router(chroma.router, prefix="/chroma", tags=["chromadb"])
 api_router.include_router(scraper.router, prefix="/scraper", tags=["scraper"])
-# Voice endpoints depend on optional providers; include when available.
+api_router.include_router(voice.router, prefix="/voice", tags=["voice"])
+api_router.include_router(elevenlabs.router, prefix="/elevenlabs", tags=["elevenlabs"])
