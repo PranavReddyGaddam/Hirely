@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import InterviewSetup from "./pages/InterviewSetup";
 import InterviewSession from "./pages/InterviewSession";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
+import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import MacBookMockup from "./components/MacBookMockup";
 import { useAuth } from "./hooks/useAuth";
@@ -36,6 +37,11 @@ function ProtectedRoute({ children }: { children: React.ReactElement }) {
 
 function HomePage() {
   const { isAuthenticated } = useAuth();
+  
+  // If user is authenticated, redirect to dashboard
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
   
   const companies = [
     { name: "Google", logo: "Google-logo.png" },
@@ -319,6 +325,14 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/signup" element={<Signup />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/interview/setup" 
             element={

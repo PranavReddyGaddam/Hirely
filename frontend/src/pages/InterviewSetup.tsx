@@ -13,9 +13,8 @@ export default function InterviewSetup() {
     company_name: '',
     position_title: '',
     job_link: '',
-    job_description: '',
-    question_count: 5,
-    interview_type: 'mixed',
+    question_count: 1,
+    interview_type: 'behavioral',
     focus_areas: [] as string[],
     difficulty_level: 'medium'
   });
@@ -98,7 +97,7 @@ export default function InterviewSetup() {
         <Header />
         <div className="relative z-10 flex items-center justify-center min-h-screen pt-24 pb-8">
           <div className="w-full max-w-2xl px-4">
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-lg" style={{ boxShadow: '0 10px 25px rgba(228, 242, 35, 0.2)' }}>
+            <div className="bg-white/30 backdrop-blur-md rounded-3xl p-8 shadow-lg" style={{ boxShadow: '0 10px 25px rgba(228, 242, 35, 0.2)' }}>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-black mb-2">Interview Setup</h1>
                 <p className="text-black/80">Enter job details to tailor your mock interview</p>
@@ -164,28 +163,6 @@ export default function InterviewSetup() {
                     onChange={handleChange}
                     className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-black placeholder-black/60 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-all duration-300"
                     placeholder="https://company.com/jobs/..."
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="job_description" className="block text-sm font-semibold text-black mb-2">
-                    Job Description / Notes
-                  </label>
-                  <textarea
-                    id="job_description"
-                    name="job_description"
-                    value={form.job_description}
-                    onChange={handleChange}
-                    className="w-full h-32 px-4 py-3 bg-white/20 rounded-xl text-black placeholder-black/60 focus:outline-none resize-none"
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#e4f223';
-                      e.currentTarget.style.boxShadow = '0 0 0 2px rgba(228, 242, 35, 0.2)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'transparent';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    placeholder="Paste the JD or any notes you'd like the AI to consider"
                   />
                 </div>
 

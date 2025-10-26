@@ -35,7 +35,7 @@ export default function Login() {
       });
 
       if (success) {
-        navigate('/interview/setup'); // Redirect to interview setup after successful login
+        navigate('/dashboard'); // Redirect to dashboard after successful login
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -74,7 +74,7 @@ export default function Login() {
         <div className="relative z-10 flex items-center justify-center min-h-screen pt-24 pb-8">
           <div className="w-full max-w-md px-4">
             {/* Glassmorphic Login Card */}
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-lg" style={{ boxShadow: '0 10px 25px rgba(228, 242, 35, 0.2)' }}>
+            <div className="bg-white/30 backdrop-blur-md rounded-3xl p-8 shadow-lg" style={{ boxShadow: '0 10px 25px rgba(228, 242, 35, 0.2)' }}>
               {/* Header */}
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-black mb-2">Welcome Back</h1>
