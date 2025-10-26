@@ -154,7 +154,7 @@ async def get_next_question(
         return {
             "question": question,
             "question_index": question.get("order_index", 1),
-            "total_questions": 5  # TODO: Get actual total from interview
+            "total_questions": question.get("total_questions", 5)  # Get actual total from service
         }
     except Exception as e:
         raise HTTPException(status_code=404, detail="No more questions available")
