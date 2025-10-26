@@ -568,7 +568,8 @@ class InterviewService:
                 "question_type": current_question.question_type,
                 "difficulty_level": current_question.difficulty_level,
                 "expected_duration": current_question.expected_duration,
-                "order_index": current_index + 1
+                "order_index": current_index + 1,
+                "total_questions": len(questions)  # Include total count
             }
             
         except Exception as e:

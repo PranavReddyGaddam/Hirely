@@ -962,7 +962,8 @@ export default function InterviewSession() {
               <video 
                 ref={videoRef} 
                 autoPlay 
-                playsInline 
+                playsInline
+                muted
                 className="w-full h-full object-cover rounded-lg shadow-lg"
                 style={{ transform: 'scaleX(-1)' }} // Mirror the video for user comfort
                 onLoadedMetadata={() => {
