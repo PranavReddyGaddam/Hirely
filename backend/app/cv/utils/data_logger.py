@@ -287,23 +287,23 @@ class DataLogger:
             }
         }
         
-        # HEAD POSE - Gaze direction and engagement
+        # HEAD POSE - Gaze direction and engagement (with safety checks)
         head_pose = {
             "gaze_direction": {
-                "avg_yaw_degrees": float(df['head_yaw'].mean()),
-                "avg_pitch_degrees": float(df['head_pitch'].mean()),
-                "avg_roll_degrees": float(df['head_roll'].mean()),
-                "direction_distribution": df['head_direction'].value_counts().to_dict()
+                "avg_yaw_degrees": float(df['head_yaw'].mean()) if 'head_yaw' in df.columns else 0.0,
+                "avg_pitch_degrees": float(df['head_pitch'].mean()) if 'head_pitch' in df.columns else 0.0,
+                "avg_roll_degrees": float(df['head_roll'].mean()) if 'head_roll' in df.columns else 0.0,
+                "direction_distribution": df['head_direction'].value_counts().to_dict() if 'head_direction' in df.columns else {'center': total_frames}
             },
             "camera_focus": {
-                "looking_at_camera_percentage": float(df['is_looking_at_camera'].sum() / total_frames * 100),
-                "avg_deviation_from_center": float(np.sqrt(df['head_yaw']**2 + df['head_pitch']**2).mean()),
-                "recommendation": "improve_eye_contact" if df['is_looking_at_camera'].sum() / total_frames < 0.7 else "maintain"
+                "looking_at_camera_percentage": float(df['is_looking_at_camera'].sum() / total_frames * 100) if 'is_looking_at_camera' in df.columns else 50.0,
+                "avg_deviation_from_center": float(np.sqrt(df['head_yaw']**2 + df['head_pitch']**2).mean()) if 'head_yaw' in df.columns and 'head_pitch' in df.columns else 0.0,
+                "recommendation": "improve_eye_contact" if 'is_looking_at_camera' in df.columns and df['is_looking_at_camera'].sum() / total_frames < 0.7 else "maintain"
             },
             "head_stability": {
-                "yaw_variability": float(df['head_yaw'].std()),
-                "pitch_variability": float(df['head_pitch'].std()),
-                "score": "stable" if df['head_yaw'].std() < 10 else "unstable"
+                "yaw_variability": float(df['head_yaw'].std()) if 'head_yaw' in df.columns else 0.0,
+                "pitch_variability": float(df['head_pitch'].std()) if 'head_pitch' in df.columns else 0.0,
+                "score": "stable" if 'head_yaw' in df.columns and df['head_yaw'].std() < 10 else "unknown"
             }
         }
         
@@ -386,14 +386,14 @@ class DataLogger:
                 "consistency": float(df['attention_score'].std())
             },
             "engagement_breakdown": {
-                "engaged_percentage": float(df['is_engaged'].sum() / total_frames * 100),
-                "distracted_percentage": float(df['is_distracted'].sum() / total_frames * 100),
-                "neutral_percentage": float((total_frames - df['is_engaged'].sum() - df['is_distracted'].sum()) / total_frames * 100)
+                "engaged_percentage": float(df['is_engaged'].sum() / total_frames * 100) if 'is_engaged' in df.columns else 50.0,
+                "distracted_percentage": float(df['is_distracted'].sum() / total_frames * 100) if 'is_distracted' in df.columns else 0.0,
+                "neutral_percentage": float((total_frames - df['is_engaged'].sum() - df['is_distracted'].sum()) / total_frames * 100) if 'is_engaged' in df.columns and 'is_distracted' in df.columns else 50.0
             },
             "focus_quality": {
-                "camera_focus_percentage": float(df['is_looking_at_camera'].sum() / total_frames * 100),
-                "attention_lapses": int((df['is_distracted'] == True).sum()),
-                "recommendation": "improve_focus" if df['is_engaged'].sum() / total_frames < 0.6 else "maintain"
+                "camera_focus_percentage": float(df['is_looking_at_camera'].sum() / total_frames * 100) if 'is_looking_at_camera' in df.columns else 50.0,
+                "attention_lapses": int((df['is_distracted'] == True).sum()) if 'is_distracted' in df.columns else 0,
+                "recommendation": "improve_focus" if 'is_engaged' in df.columns and df['is_engaged'].sum() / total_frames < 0.6 else "maintain"
             },
             "alert_summary": {
                 "total_alerts": int(df['alert_count'].sum()) if 'alert_count' in df.columns else 0,
@@ -422,7 +422,12 @@ class DataLogger:
                 "posture_score": float((posture_counts.get('upright_relaxed', 0) + posture_counts.get('engaged_forward_lean', 0)) / total_frames),
                 "expression_score": float(1 - stress_distribution.get('high_stress', 0) / total_frames),
                 "gesture_score": float(1 - (df['face_touching'].sum() + df['hand_fidgeting'].sum()) / (2 * total_frames)),
-                "overall_score": float(df['attention_score'].mean() * 100)
+                "overall_score": round((
+                    df['attention_score'].mean() * 0.30 +  # 30% weight - engagement and focus
+                    ((posture_counts.get('upright_relaxed', 0) + posture_counts.get('engaged_forward_lean', 0)) / total_frames) * 0.25 +  # 25% - body language
+                    (1 - stress_distribution.get('high_stress', 0) / total_frames) * 0.25 +  # 25% - emotional control
+                    (1 - (df['face_touching'].sum() + df['hand_fidgeting'].sum()) / (2 * total_frames)) * 0.20  # 20% - gesture control
+                ) * 100)  # Convert to 0-100 scale and round to integer
             },
         }
         

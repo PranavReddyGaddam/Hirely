@@ -92,10 +92,10 @@ class HeadPoseEstimator:
         engagement_score = self._calculate_engagement(yaw, pitch, roll)
         
         return {
-            'yaw': yaw,
-            'pitch': pitch,
-            'roll': roll,
-            'direction': direction,
+            'head_yaw': yaw,
+            'head_pitch': pitch,
+            'head_roll': roll,
+            'head_direction': direction,
             'engagement_score': engagement_score,
             'is_looking_at_camera': abs(yaw) < 15 and abs(pitch) < 15,
             'is_looking_away': abs(yaw) > 30 or abs(pitch) > 25,
@@ -178,10 +178,10 @@ class HeadPoseEstimator:
     def _default_result(self) -> Dict:
         """Return default result when estimation fails"""
         return {
-            'yaw': 0.0,
-            'pitch': 0.0,
-            'roll': 0.0,
-            'direction': 'center',  # Assume center when unknown (benefit of doubt)
+            'head_yaw': 0.0,
+            'head_pitch': 0.0,
+            'head_roll': 0.0,
+            'head_direction': 'center',  # Assume center when unknown (benefit of doubt)
             'engagement_score': 0.7,  # Default to reasonable score (not 0.0 which triggers alerts)
             'is_looking_at_camera': True,  # Assume looking when unknown
             'is_looking_away': False,

@@ -6,8 +6,10 @@ import asyncio
 import json
 import cv2
 import time
+import tempfile
 from typing import Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
 
 import requests
 import os
@@ -187,9 +189,15 @@ class InterviewAnalysisOrchestrator:
             
             try:
                 # Process video with CV (run in executor to prevent blocking)
-                cv_results = await asyncio.to_thread(self._process_video_sync, temp_video_path)
+                # This now returns the actual analysis data (not file paths)
+                analysis_data = await asyncio.to_thread(self._process_video_sync, temp_video_path)
                 
-                return cv_results.get('analysis', {}) if cv_results else None
+                if analysis_data:
+                    logger.info(f"[CV Analysis] ✅ Analysis completed successfully")
+                    return analysis_data
+                else:
+                    logger.error(f"[CV Analysis] ❌ No analysis data returned")
+                    return None
                 
             finally:
                 # Cleanup temp file
@@ -241,10 +249,40 @@ class InterviewAnalysisOrchestrator:
             
             logger.info(f"[CV Analysis] Processed {processed_frames} frames")
             
-            # Get analysis results
-            cv_results = processor.stop_session(export_path=None)
-            
-            return cv_results
+            # Create temp directory for CV analysis exports
+            with tempfile.TemporaryDirectory() as temp_dir:
+                export_path = Path(temp_dir) / "cv_analysis"
+                export_path.mkdir(exist_ok=True)
+                
+                # Get analysis results (returns file paths)
+                cv_results = processor.stop_session(export_path=str(export_path))
+                
+                # Read the analysis file BEFORE temp directory is deleted
+                if cv_results and 'export_files' in cv_results:
+                    export_files = cv_results['export_files']
+                    if 'interview_analysis' in export_files:
+                        analysis_file = export_files['interview_analysis']
+                        try:
+                            with open(analysis_file, 'r') as f:
+                                analysis_data = json.load(f)
+                            
+                            # Verify CV score exists
+                            if 'overall_interview_score' in analysis_data:
+                                overall_score = analysis_data['overall_interview_score'].get('overall_score', 0)
+                                logger.info(f"[CV Analysis] ✅ CV score calculated: {overall_score}/100")
+                                return analysis_data
+                            else:
+                                logger.error("[CV Analysis] ❌ No overall_interview_score in analysis data")
+                                return None
+                        except Exception as e:
+                            logger.error(f"[CV Analysis] ❌ Error reading analysis file: {e}")
+                            return None
+                    else:
+                        logger.error("[CV Analysis] ❌ No interview_analysis in export_files")
+                        return None
+                else:
+                    logger.error("[CV Analysis] ❌ stop_session did not return export_files")
+                    return None
             
         except Exception as e:
             logger.error(f"[CV Analysis] Error in sync processing: {e}", exc_info=True)
@@ -415,6 +453,12 @@ Be encouraging but honest. Focus on actionable feedback."""
         # Get CV score (if available)
         if cv_analysis and 'overall_interview_score' in cv_analysis:
             cv_score = cv_analysis['overall_interview_score'].get('overall_score', 0)
+            
+            # Validate CV score - log warning if analysis likely failed
+            if cv_score == 0:
+                logger.warning(f"[Score Calculation] CV score is 0 - possible causes: no face detected in video, poor lighting, or video processing error")
+            else:
+                logger.info(f"[Score Calculation] CV score: {cv_score}/100")
         
         # Get communication score (if available)
         if transcript_analysis and 'communication_score' in transcript_analysis:

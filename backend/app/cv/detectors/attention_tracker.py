@@ -90,9 +90,10 @@ class AttentionTracker:
             'posture_score': posture_score,
             'gesture_score': gesture_score,
             'gaze_score': gaze_score,
-            'head_pose': head_pose_data if head_pose_data else {},
+            # head_pose_data is already merged into metrics by cv_processor, no need to nest it here
             'avg_attention': np.mean(list(self.attention_scores)) if self.attention_scores else 0.5,
             'alerts': alerts,
+            'alert_count': len(alerts),
             'is_engaged': attention_score > 0.7,
             'is_distracted': attention_score < 0.4,
             'stress_level': expression_data.get('stress_level', 'unknown'),
