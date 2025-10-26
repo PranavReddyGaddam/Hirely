@@ -19,13 +19,55 @@ class GroqService:
         try:
             if settings.GROQ_API_KEY:
                 self.client = groq.Groq(api_key=settings.GROQ_API_KEY)
-                logger.info("Groq client initialized successfully")
+                logger.info("✅ Groq client initialized successfully")
+                logger.info(f"📝 Groq API key present: {settings.GROQ_API_KEY[:10]}...")
             else:
-                logger.warning("Groq API key not configured")
+                logger.error("❌ Groq API key not configured in environment variables")
+                logger.error("💡 Please set GROQ_API_KEY in your .env file")
                 self.client = None
         except Exception as e:
-            logger.error(f"Failed to initialize Groq client: {e}")
+            logger.error(f"❌ Failed to initialize Groq client: {e}", exc_info=True)
             self.client = None
+    
+    def test_connection(self) -> dict:
+        """Test Groq API connection and return status."""
+        if not self.client:
+            return {
+                "success": False,
+                "error": "Groq client not initialized. Check API key."
+            }
+        
+        try:
+            # Make a minimal test call
+            response = self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "user", "content": "Say 'test' if you can read this."}
+                ],
+                max_tokens=10,
+                temperature=0.5
+            )
+            
+            if response.choices and len(response.choices) > 0:
+                logger.info("✅ Groq API connection test successful")
+                return {
+                    "success": True,
+                    "message": "Groq API is working",
+                    "model": "llama-3.3-70b-versatile"
+                }
+            else:
+                logger.error("❌ Groq API returned empty response")
+                return {
+                    "success": False,
+                    "error": "Empty response from Groq API"
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Groq API connection test failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
     async def generate_initial_questions(
         self, 

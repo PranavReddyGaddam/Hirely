@@ -645,37 +645,50 @@ You are a professional interviewer, not a chatty assistant. Be brief, clear, foc
                 # Extract transcript from conversation data
                 # ElevenLabs returns conversation with messages/turns
                 transcript_text = ""
+                user_transcript_text = ""  # Only user responses for analysis
                 messages = []
                 
                 if 'transcript' in conversation_data:
-                    # If direct transcript is available (could be string or list)
+                    # Parse transcript array (standard format)
                     raw_transcript = conversation_data['transcript']
+                    
                     if isinstance(raw_transcript, list):
-                        # Join list items into single string
-                        transcript_text = " ".join(str(item) for item in raw_transcript)
+                        for turn in raw_transcript:
+                            role = turn.get('role', 'unknown')
+                            message = turn.get('message', '')
+                            time_secs = turn.get('time_in_call_secs', 0)
+                            
+                            messages.append({
+                                'speaker': role,
+                                'text': message,
+                                'time_in_call_secs': time_secs
+                            })
+                            
+                            # Add to full transcript
+                            transcript_text += f"{message} "
+                            
+                            # Add only user messages for speech analysis
+                            if role == 'user':
+                                user_transcript_text += f"{message} "
+                    elif isinstance(raw_transcript, str):
+                        transcript_text = raw_transcript
+                        user_transcript_text = raw_transcript
                     else:
                         transcript_text = str(raw_transcript)
-                elif 'messages' in conversation_data:
-                    # Build transcript from messages
-                    for msg in conversation_data['messages']:
-                        speaker = msg.get('role', 'unknown')
-                        text = msg.get('message', '')
-                        timestamp = msg.get('timestamp', '')
-                        
-                        messages.append({
-                            'speaker': speaker,
-                            'text': text,
-                            'timestamp': timestamp
-                        })
-                        
-                        transcript_text += f"{text} "
+                        user_transcript_text = str(raw_transcript)
+                
+                # Get metadata for duration
+                metadata = conversation_data.get('metadata', {})
+                duration = metadata.get('call_duration_secs', 0)
                 
                 return {
                     'conversation_id': conversation_id,
                     'full_transcript': transcript_text.strip(),
+                    'user_transcript': user_transcript_text.strip(),  # User responses only
                     'messages': messages,
-                    'duration': conversation_data.get('duration', 0),
-                    'created_at': conversation_data.get('created_at', '')
+                    'duration': duration,
+                    'metadata': metadata,
+                    'status': conversation_data.get('status', 'unknown')
                 }
                 
         except httpx.HTTPStatusError as e:

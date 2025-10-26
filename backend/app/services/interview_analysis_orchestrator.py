@@ -13,11 +13,13 @@ from pathlib import Path
 
 import requests
 import os
+import groq
 
 from app.services.supabase_service import SupabaseService
 from app.services.s3_service import S3Service
 from app.services.elevenlabs_service import ElevenLabsService
 from app.services.transcript_analyzer import TranscriptAnalyzer
+from app.services.enhanced_metrics_calculator import EnhancedMetricsCalculator
 from app.cv.services.cv_processor import CVProcessor
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -33,6 +35,7 @@ class InterviewAnalysisOrchestrator:
         self.s3_service = S3Service()
         self.elevenlabs_service = ElevenLabsService()
         self.transcript_analyzer = TranscriptAnalyzer()
+        self.enhanced_metrics_calc = EnhancedMetricsCalculator()
         # Use Groq instead of OpenRouter for AI insights
         from app.services.groq_service import GroqService
         self.groq_service = GroqService()
@@ -119,39 +122,70 @@ class InterviewAnalysisOrchestrator:
                 logger.info(f"[Analysis Orchestrator] Getting transcript from ElevenLabs: {conversation_id}")
                 transcript_data = await self.elevenlabs_service.get_conversation_transcript(conversation_id)
                 
-                if transcript_data and transcript_data.get('full_transcript'):
-                    logger.info(f"[Analysis Orchestrator] Analyzing transcript ({len(transcript_data['full_transcript'])} chars)")
+                if transcript_data and transcript_data.get('user_transcript'):
+                    # Analyze only user's speech (not agent's responses)
+                    user_transcript = transcript_data['user_transcript']
+                    logger.info(f"[Analysis Orchestrator] Analyzing user transcript ({len(user_transcript)} chars)")
+                    logger.info(f"[Analysis Orchestrator] Conversation duration: {transcript_data.get('duration', 0)} seconds")
                     
-                    # Get interview duration from video or estimate
+                    # Get interview duration
                     duration = transcript_data.get('duration', 0)
                     if cv_analysis and 'session_info' in cv_analysis:
                         duration = cv_analysis['session_info'].get('duration_seconds', duration)
                     
+                    # Analyze speech patterns
                     transcript_analysis = self.transcript_analyzer.analyze_transcript(
-                        transcript_data['full_transcript'],
+                        user_transcript,
                         duration
                     )
                     
-                    # Add raw transcript data
+                    # Add conversation metadata
                     transcript_analysis['conversation_id'] = conversation_id
+                    transcript_analysis['full_conversation'] = transcript_data.get('full_transcript', '')
                     transcript_analysis['messages'] = transcript_data.get('messages', [])
+                    transcript_analysis['conversation_metadata'] = transcript_data.get('metadata', {})
                     
                     results['transcript_analysis'] = transcript_analysis
+                    logger.info(f"[Analysis Orchestrator] ✅ Transcript analysis complete")
+                    logger.info(f"[Analysis Orchestrator]   - Communication score: {transcript_analysis.get('communication_score', {}).get('score', 0)}/100")
                 else:
                     logger.warning(f"[Analysis Orchestrator] No transcript available from ElevenLabs")
             else:
                 logger.warning(f"[Analysis Orchestrator] No conversation_id provided")
             
-            # Step 4: Generate AI insights using Groq
+            # Step 4: Calculate enhanced metrics from existing data
+            logger.info(f"[Analysis Orchestrator] Calculating enhanced metrics")
+            if cv_analysis and transcript_analysis:
+                try:
+                    enhanced_cv = self.enhanced_metrics_calc.calculate_enhanced_cv_metrics(cv_analysis)
+                    enhanced_comm = self.enhanced_metrics_calc.calculate_enhanced_communication_metrics(transcript_analysis)
+                    comparison = self.enhanced_metrics_calc.calculate_comparison_metrics(cv_analysis, transcript_analysis)
+                    roadmap = self.enhanced_metrics_calc.calculate_improvement_roadmap(
+                        cv_analysis, transcript_analysis, enhanced_cv, enhanced_comm
+                    )
+                    
+                    results['enhanced_metrics'] = {
+                        'cv_detailed': enhanced_cv,
+                        'communication_detailed': enhanced_comm,
+                        'comparison_to_benchmarks': comparison,
+                        'improvement_roadmap': roadmap
+                    }
+                    logger.info(f"[Analysis Orchestrator] ✅ Enhanced metrics calculated")
+                except Exception as e:
+                    logger.error(f"[Analysis Orchestrator] Enhanced metrics calculation failed: {e}")
+                    results['enhanced_metrics'] = None
+            
+            # Step 5: Generate AI insights using Groq (with enhanced metrics)
             logger.info(f"[Analysis Orchestrator] Generating AI insights with Groq")
             ai_insights = await self._generate_ai_insights(
                 cv_analysis,
                 transcript_analysis,
-                interview.interview_type
+                interview.interview_type,
+                results.get('enhanced_metrics')  # Pass enhanced metrics to AI
             )
             results['ai_insights'] = ai_insights
             
-            # Step 5: Calculate overall score
+            # Step 6: Calculate overall score
             overall_score = self._calculate_overall_score(cv_analysis, transcript_analysis)
             results['overall_score'] = overall_score
             
@@ -299,47 +333,77 @@ class InterviewAnalysisOrchestrator:
         self,
         cv_analysis: Optional[Dict],
         transcript_analysis: Optional[Dict],
-        interview_type: str
+        interview_type: str,
+        enhanced_metrics: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Generate AI insights using Groq"""
         
-        if not self.groq_service or not self.groq_service.client:
-            logger.error("[AI Insights] Groq API key not configured")
+        # Validate Groq service
+        if not self.groq_service:
+            error_msg = "Groq service not initialized"
+            logger.error(f"[AI Insights] ❌ {error_msg}")
             return {
-                "feedback": "AI insights generation failed. Groq API key not configured.",
-                "error": "Missing API key"
+                "feedback": f"AI insights unavailable: {error_msg}. Please check server configuration.",
+                "error": error_msg,
+                "error_type": "service_not_initialized"
             }
         
+        if not self.groq_service.client:
+            error_msg = "Groq API client not configured. Please verify GROQ_API_KEY in environment variables."
+            logger.error(f"[AI Insights] ❌ {error_msg}")
+            return {
+                "feedback": f"AI insights unavailable: {error_msg}",
+                "error": error_msg,
+                "error_type": "api_key_missing"
+            }
+        
+        # Log what data we have for analysis
+        logger.info(f"[AI Insights] 🔍 Preparing to generate insights:")
+        logger.info(f"[AI Insights]   - CV Analysis: {'Available' if cv_analysis else 'Missing'}")
+        logger.info(f"[AI Insights]   - Transcript Analysis: {'Available' if transcript_analysis else 'Missing'}")
+        logger.info(f"[AI Insights]   - Interview Type: {interview_type}")
+        
         try:
-            # Build comprehensive prompt
-            prompt = self._build_analysis_prompt(cv_analysis, transcript_analysis, interview_type)
+            # Build comprehensive prompt with enhanced metrics
+            logger.info("[AI Insights] 📝 Building analysis prompt...")
+            prompt = self._build_analysis_prompt(cv_analysis, transcript_analysis, interview_type, enhanced_metrics)
+            logger.info(f"[AI Insights] 📝 Prompt length: {len(prompt)} characters")
             
-            system_prompt = """You are an expert interview performance analyst and career coach. 
+            system_prompt = """You are an expert interview performance analyst and career coach with deep expertise in behavioral psychology and communication skills.
 
-Your role is to ANALYZE a candidate's completed interview performance based on objective metrics and provide constructive feedback.
+Your role is to ANALYZE a candidate's completed interview performance based on comprehensive metrics and provide data-driven, actionable feedback.
 
 You will receive:
-- Visual behavior metrics (facial expressions, eye contact, posture, engagement)
-- Communication metrics (filler words, speaking pace, vocabulary)
-- Overall performance scores
+- **Basic Metrics:** Visual behavior (facial expressions, eye contact, posture), communication (filler words, pace, vocabulary)
+- **Enhanced Metrics:** Professional presence scores, nervousness indicators, energy levels, confidence assessments
+- **Benchmark Comparisons:** How the candidate compares to average candidates and top 10% performers
+- **Identified Issues:** Prioritized improvement areas with current→target metrics
+- **Conversation Samples:** Actual responses from the interview
 
 Your response should include:
-1. **Executive Summary** (2-3 sentences summarizing overall performance)
-2. **Top 3 Strengths** (specific observations from the data with examples)
-3. **Top 3 Areas for Improvement** (specific, actionable suggestions based on the metrics)
-4. **Detailed Recommendations** (5-7 concrete action items to improve)
-5. **Next Steps** (3-4 practical steps the candidate can take immediately)
+1. **Executive Summary** (2-3 sentences - reference SPECIFIC numbers from the data)
+2. **Top 3 Strengths** (cite exact metrics, e.g., "Your eye contact of 85% exceeded the 65% average")
+3. **Top 3 Areas for Improvement** (reference the provided improvement roadmap and metrics)
+4. **Detailed Recommendations** (5-7 concrete actions based on the specific issues identified)
+5. **Next Steps** (3-4 practical steps with measurable goals, e.g., "Practice to reduce filler words from 5.2% to under 3%")
 
-Guidelines:
-- Be data-driven: reference specific metrics from the analysis
-- Be encouraging yet honest
-- Focus on actionable, practical advice
-- Use a professional but supportive tone
-- DO NOT ask questions - this is POST-interview analysis"""
+CRITICAL Guidelines:
+- BE SPECIFIC: Always cite exact numbers and metrics (e.g., "78% posture", "3.2% filler words", "145 WPM")
+- BE COMPARATIVE: Reference averages and benchmarks (e.g., "above the 65% average", "approaching top 10% at 85%")
+- BE ACTIONABLE: Every suggestion must be concrete and measurable
+- ACKNOWLEDGE CONTEXT: If improvement roadmap shows specific issues, address those directly
+- Use a professional, supportive, data-driven tone
+- DO NOT ask questions - this is POST-interview analysis
+- DO NOT be generic - use the rich data provided"""
             
             # Call Groq API
+            logger.info("[AI Insights] 🚀 Calling Groq API...")
+            logger.info("[AI Insights]   - Model: llama-3.3-70b-versatile")
+            logger.info("[AI Insights]   - Temperature: 0.7")
+            logger.info("[AI Insights]   - Max tokens: 2000")
+            
             response = self.groq_service.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
@@ -348,30 +412,68 @@ Guidelines:
                 max_tokens=2000
             )
             
+            logger.info("[AI Insights] 📥 Received response from Groq API")
+            
             if response.choices and len(response.choices) > 0:
                 feedback_text = response.choices[0].message.content
-                logger.info(f"[AI Insights] ✅ Generated {len(feedback_text)} chars of feedback")
+                logger.info(f"[AI Insights] ✅ Successfully generated {len(feedback_text)} characters of feedback")
+                logger.info(f"[AI Insights] ✅ Preview: {feedback_text[:100]}...")
                 
                 return {
                     "feedback": feedback_text,
-                    "model": "llama-3.1-70b-versatile"
+                    "model": "llama-3.3-70b-versatile",
+                    "success": True
                 }
             else:
-                logger.error("[AI Insights] No choices in Groq response")
-                raise Exception("Invalid response from Groq")
+                error_msg = "Groq API returned empty response (no choices)"
+                logger.error(f"[AI Insights] ❌ {error_msg}")
+                logger.error(f"[AI Insights] ❌ Full response: {response}")
+                raise Exception(error_msg)
             
-        except Exception as e:
-            logger.error(f"[AI Insights] Error generating insights: {e}", exc_info=True)
+        except groq.APIError as e:
+            error_msg = f"Groq API Error: {str(e)}"
+            logger.error(f"[AI Insights] ❌ {error_msg}", exc_info=True)
             return {
-                "feedback": "AI insights generation failed. Please review the metrics manually.",
-                "error": str(e)
+                "feedback": f"AI insights generation failed due to API error. Error: {str(e)}\n\nPlease review the metrics manually or try again later.",
+                "error": error_msg,
+                "error_type": "api_error",
+                "success": False
+            }
+        except groq.RateLimitError as e:
+            error_msg = f"Groq API Rate Limit: {str(e)}"
+            logger.error(f"[AI Insights] ❌ {error_msg}")
+            return {
+                "feedback": "AI insights generation failed due to rate limiting. Please try again in a few moments.\n\nPlease review the metrics manually in the meantime.",
+                "error": error_msg,
+                "error_type": "rate_limit",
+                "success": False
+            }
+        except groq.AuthenticationError as e:
+            error_msg = f"Groq Authentication Error: {str(e)}"
+            logger.error(f"[AI Insights] ❌ {error_msg}")
+            return {
+                "feedback": "AI insights generation failed due to authentication error. Please contact support.\n\nPlease review the metrics manually.",
+                "error": error_msg,
+                "error_type": "authentication_error",
+                "success": False
+            }
+        except Exception as e:
+            error_msg = f"Unexpected error: {str(e)}"
+            logger.error(f"[AI Insights] ❌ {error_msg}", exc_info=True)
+            logger.error(f"[AI Insights] ❌ Error type: {type(e).__name__}")
+            return {
+                "feedback": f"AI insights generation encountered an unexpected error: {str(e)}\n\nPlease review the metrics manually or contact support if this persists.",
+                "error": error_msg,
+                "error_type": "unexpected_error",
+                "success": False
             }
     
     def _build_analysis_prompt(
         self,
         cv_analysis: Optional[Dict],
         transcript_analysis: Optional[Dict],
-        interview_type: str
+        interview_type: str,
+        enhanced_metrics: Optional[Dict] = None
     ) -> str:
         """Build comprehensive analysis prompt for LLM"""
         
@@ -427,8 +529,130 @@ Guidelines:
             
             comm_score = transcript_analysis.get('communication_score', {})
             prompt += f"**Communication Score:** {comm_score.get('score', 0):.1f}/100 ({comm_score.get('grade', 'N/A')})\n\n"
+            
+            # Include sample of actual conversation for context
+            messages = transcript_analysis.get('messages', [])
+            if messages:
+                prompt += "## Interview Conversation Sample\n\n"
+                prompt += "Here are key excerpts from the candidate's responses:\n\n"
+                
+                # Get user messages only (up to 5 key responses)
+                user_messages = [msg for msg in messages if msg.get('speaker') == 'user'][:5]
+                for i, msg in enumerate(user_messages, 1):
+                    text = msg.get('text', '')[:200]  # Limit to 200 chars
+                    prompt += f"{i}. \"{text}...\"\n\n"
         
-        prompt += "\n\nBased on this data, provide comprehensive feedback for the candidate."
+        # Enhanced Metrics section - DETAILED ANALYSIS
+        if enhanced_metrics:
+            prompt += "## Enhanced Performance Metrics (DETAILED ANALYSIS)\n\n"
+            prompt += "**These are advanced, actionable metrics calculated from the raw data above:**\n\n"
+            
+            # Professional Presence
+            cv_detailed = enhanced_metrics.get('cv_detailed', {})
+            if cv_detailed.get('professional_presence'):
+                presence = cv_detailed['professional_presence']
+                prompt += f"### Professional Presence: {presence.get('overall_score', 0):.1f}/100 ({presence.get('rating', 'N/A')})\n"
+                prompt += f"- This combines eye contact, posture, engagement, and emotional stability\n\n"
+            
+            # Eye Contact Details
+            if cv_detailed.get('eye_contact_detailed'):
+                eye = cv_detailed['eye_contact_detailed']
+                prompt += f"### Eye Contact Quality: {eye.get('quality_rating', 'N/A')}\n"
+                prompt += f"- Direct contact: {eye.get('direct_contact_percentage', 0):.1f}%\n"
+                prompt += f"- Looking away: {eye.get('looking_away_percentage', 0):.1f}%\n"
+                prompt += f"- Looking down: {eye.get('looking_down_percentage', 0):.1f}%\n"
+                if eye.get('improvement_needed'):
+                    prompt += f"- ⚠️ **Needs Improvement**: {eye.get('tip', '')}\n"
+                prompt += "\n"
+            
+            # Nervousness Indicators
+            if cv_detailed.get('nervousness_indicators'):
+                nerv = cv_detailed['nervousness_indicators']
+                prompt += f"### Nervousness Level: {nerv.get('nervousness_rating', 'N/A')}\n"
+                prompt += f"- Hand fidgeting: {nerv.get('hand_fidgeting_count', 0)} times\n"
+                prompt += f"- Face touching: {nerv.get('face_touching_count', 0)} times\n"
+                prompt += f"- Total nervous movements: {nerv.get('total_nervous_movements', 0)}\n"
+                if nerv.get('total_nervous_movements', 0) > 10:
+                    prompt += f"- ⚠️ **High nervousness detected** - recommend relaxation techniques\n"
+                prompt += "\n"
+            
+            # Energy & Enthusiasm
+            if cv_detailed.get('energy_enthusiasm'):
+                energy = cv_detailed['energy_enthusiasm']
+                prompt += f"### Energy & Enthusiasm: {energy.get('enthusiasm_rating', 'N/A')}\n"
+                prompt += f"- Energy level: {energy.get('energy_level', 0)}/100\n"
+                prompt += f"- Genuine smiles: {energy.get('genuine_smiles', 0)}\n"
+                prompt += f"- Dominant emotion: {energy.get('dominant_emotion', 'N/A')}\n\n"
+            
+            # Communication Details
+            comm_detailed = enhanced_metrics.get('communication_detailed', {})
+            if comm_detailed.get('speech_quality'):
+                speech = comm_detailed['speech_quality']
+                prompt += f"### Speech Quality: {speech.get('pace_rating', 'N/A')}\n"
+                prompt += f"- Speaking pace: {speech.get('speaking_pace_wpm', 0):.0f} WPM\n"
+                prompt += f"- Ideal range: 130-160 WPM\n"
+                prompt += f"- In ideal range: {'✅ Yes' if speech.get('in_ideal_range') else '⚠️ No'}\n"
+                if speech.get('tip'):
+                    prompt += f"- Tip: {speech.get('tip')}\n"
+                prompt += "\n"
+            
+            # Filler Word Details
+            if comm_detailed.get('filler_analysis_detailed'):
+                filler = comm_detailed['filler_analysis_detailed']
+                prompt += f"### Filler Word Analysis: {filler.get('rating', 'N/A')}\n"
+                prompt += f"- Total: {filler.get('total_count', 0)} ({filler.get('percentage', 0):.1f}%)\n"
+                prompt += f"- Most used: \"{filler.get('most_used', 'none')}\" ({filler.get('most_used_count', 0)}x)\n"
+                prompt += f"- Confidence impact: {filler.get('confidence_impact', 'N/A')}\n"
+                if filler.get('tip'):
+                    prompt += f"- Tip: {filler.get('tip')}\n"
+                prompt += "\n"
+            
+            # Vocabulary Details
+            if comm_detailed.get('vocabulary_detailed'):
+                vocab = comm_detailed['vocabulary_detailed']
+                prompt += f"### Vocabulary: {vocab.get('rating', 'N/A')}\n"
+                prompt += f"- Unique words: {vocab.get('unique_words', 0)}/{vocab.get('total_words', 0)}\n"
+                prompt += f"- Diversity: {vocab.get('diversity_percentage', 0):.1f}%\n"
+                if vocab.get('tip'):
+                    prompt += f"- Tip: {vocab.get('tip')}\n"
+                prompt += "\n"
+            
+            # Comparison to Benchmarks
+            comparison = enhanced_metrics.get('comparison_to_benchmarks', {})
+            if comparison:
+                prompt += "### Comparison to Average Candidates\n\n"
+                for metric_name, data in comparison.items():
+                    status = data.get('status', 'N/A')
+                    your_score = data.get('your_score', 0)
+                    avg = data.get('average', 0)
+                    top10 = data.get('top_10_percent', 0)
+                    
+                    status_emoji = "✅" if status in ['above_average', 'on_target'] else "⚠️"
+                    prompt += f"**{metric_name.replace('_', ' ').title()}:** {status_emoji} {status.replace('_', ' ').title()}\n"
+                    prompt += f"  - Your score: {your_score}\n"
+                    prompt += f"  - Average: {avg}\n"
+                    prompt += f"  - Top 10%: {top10}\n\n"
+            
+            # Improvement Roadmap
+            roadmap = enhanced_metrics.get('improvement_roadmap', [])
+            if roadmap:
+                prompt += "### Priority Improvements Needed\n\n"
+                prompt += "**The following issues were automatically identified and should be addressed:**\n\n"
+                for i, item in enumerate(roadmap, 1):
+                    priority_emoji = "🔴" if item['priority'] == 'high' else "🟡" if item['priority'] == 'medium' else "🔵"
+                    prompt += f"{i}. {priority_emoji} **[{item['priority'].upper()}] {item['issue']}**\n"
+                    prompt += f"   - Current: {item['current']} → Target: {item['target']}\n"
+                    prompt += f"   - Impact: {item['impact']}\n"
+                    prompt += f"   - Action: {item['action']}\n\n"
+        
+        prompt += "\n\n---\n\n"
+        prompt += "**INSTRUCTIONS FOR YOUR ANALYSIS:**\n\n"
+        prompt += "Based on ALL the data above (basic metrics + enhanced metrics + comparisons + identified issues), provide comprehensive, data-driven feedback.\n\n"
+        prompt += "Reference specific numbers and metrics in your response. For example:\n"
+        prompt += "- 'Your eye contact was strong at 85%, well above the average of 65%'\n"
+        prompt += "- 'Your filler word usage of 3.2% is excellent, showing strong confidence'\n"
+        prompt += "- 'The 12 instances of fidgeting suggest some nervousness - try relaxation techniques'\n\n"
+        prompt += "Make your feedback actionable and specific, not generic."
         
         return prompt
     

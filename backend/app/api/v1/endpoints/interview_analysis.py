@@ -359,3 +359,44 @@ async def clear_analysis_results(
         logger.error(f"[Analysis API] Error clearing results: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/test-groq")
+async def test_groq_connection(current_user: UserResponse = Depends(get_current_user)):
+    """
+    Test Groq API connection and configuration.
+    
+    Returns:
+        Connection status and error details if any
+    """
+    try:
+        from app.services.groq_service import GroqService
+        
+        groq_service = GroqService()
+        result = groq_service.test_connection()
+        
+        if result.get("success"):
+            return {
+                "status": "success",
+                "message": "Groq API is working correctly",
+                "details": result
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Groq API connection failed",
+                "details": result,
+                "troubleshooting": [
+                    "Check that GROQ_API_KEY is set in .env file",
+                    "Verify the API key is valid at https://console.groq.com",
+                    "Ensure the server has been restarted after .env changes",
+                    "Check network connectivity to Groq API"
+                ]
+            }
+    except Exception as e:
+        logger.error(f"[Analysis API] Error testing Groq: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": "Failed to test Groq connection",
+            "error": str(e)
+        }
+
