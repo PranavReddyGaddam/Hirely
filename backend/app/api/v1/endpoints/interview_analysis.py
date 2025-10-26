@@ -48,6 +48,10 @@ async def run_analysis_background(
 ):
     """Background task to run interview analysis"""
     try:
+        # Ensure environment variables are loaded in background task context
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         print(f"[Analysis API] 🚀 Starting background analysis for {interview_id}")
         logger.info(f"[Analysis API] Starting background analysis for {interview_id}")
         
@@ -83,14 +87,26 @@ async def run_analysis_background(
                 "message": results.get('error', 'Analysis failed')
             }
         
-        logger.info(f"[Analysis API] Background analysis complete for {interview_id}")
+        logger.info(f"[Analysis API] ✅ Background analysis complete for {interview_id}")
+        logger.info(f"[Analysis API] CV analysis present: {results.get('cv_analysis') is not None and results.get('cv_analysis') != False}")
+        logger.info(f"[Analysis API] Transcript analysis present: {results.get('transcript_analysis') is not None}")
         
     except Exception as e:
-        logger.error(f"[Analysis API] Background analysis error: {e}", exc_info=True)
+        logger.error(f"[Analysis API] ❌ Background analysis error: {e}", exc_info=True)
+        print(f"[Analysis API] ❌ Background analysis error: {e}")
         analysis_status_cache[interview_id] = {
             "status": "failed",
             "progress": 0,
             "message": str(e)
+        }
+        # Store error in results cache too for debugging
+        analysis_results_cache[interview_id] = {
+            "interview_id": interview_id,
+            "analysis_status": "failed",
+            "error": str(e),
+            "cv_analysis": None,
+            "transcript_analysis": None,
+            "ai_insights": None
         }
 
 
@@ -119,7 +135,7 @@ async def start_interview_analysis(
         print(f"[Analysis API] 📝 Start analysis request for interview {interview_id}")
         logger.info(f"[Analysis API] Start analysis request for interview {interview_id}")
         
-        # Check if analysis is already running
+        # Check if analysis is already running in cache
         if interview_id in analysis_status_cache:
             status = analysis_status_cache[interview_id]
             if status['status'] == 'in_progress':
@@ -129,6 +145,24 @@ async def start_interview_analysis(
                     progress=status.get('progress', 50),
                     message="Analysis already in progress"
                 )
+        
+        # Check if analysis already exists in database
+        from app.services.supabase_service import SupabaseService
+        supabase = SupabaseService()
+        
+        if supabase.client:
+            db_result = supabase.client.table('analysis').select('status').eq('interview_id', interview_id).execute()
+            
+            if db_result.data and len(db_result.data) > 0:
+                db_status = db_result.data[0].get('status', 'unknown')
+                if db_status == 'completed':
+                    logger.info(f"[Analysis API] Analysis already completed for {interview_id}")
+                    return AnalysisStatusResponse(
+                        interview_id=interview_id,
+                        status="completed",
+                        progress=100,
+                        message="Analysis already completed"
+                    )
         
         # Initialize status
         analysis_status_cache[interview_id] = {
@@ -175,21 +209,40 @@ async def get_analysis_status(
         Current analysis status
     """
     try:
-        if interview_id not in analysis_status_cache:
+        # Check cache first
+        if interview_id in analysis_status_cache:
+            status = analysis_status_cache[interview_id]
             return AnalysisStatusResponse(
                 interview_id=interview_id,
-                status="not_started",
-                progress=0,
-                message="Analysis not started"
+                status=status['status'],
+                progress=status.get('progress', 0),
+                message=status.get('message', '')
             )
         
-        status = analysis_status_cache[interview_id]
+        # Cache miss - check database
+        from app.services.supabase_service import SupabaseService
+        supabase = SupabaseService()
         
+        if supabase.client:
+            db_result = supabase.client.table('analysis').select('status').eq('interview_id', interview_id).execute()
+            
+            if db_result.data and len(db_result.data) > 0:
+                db_status = db_result.data[0].get('status', 'unknown')
+                logger.info(f"[Analysis API] Found analysis in database for {interview_id}: {db_status}")
+                
+                return AnalysisStatusResponse(
+                    interview_id=interview_id,
+                    status='completed' if db_status == 'completed' else db_status,
+                    progress=100 if db_status == 'completed' else 0,
+                    message="Analysis complete" if db_status == 'completed' else "Analysis in progress"
+                )
+        
+        # Not in cache or database
         return AnalysisStatusResponse(
             interview_id=interview_id,
-            status=status['status'],
-            progress=status.get('progress', 0),
-            message=status.get('message', '')
+            status="not_started",
+            progress=0,
+            message="Analysis not started"
         )
         
     except Exception as e:
@@ -213,32 +266,62 @@ async def get_analysis_results(
         Complete analysis results
     """
     try:
-        # Check if analysis is complete
-        if interview_id not in analysis_results_cache:
-            # Check status
-            if interview_id in analysis_status_cache:
-                status = analysis_status_cache[interview_id]
-                if status['status'] in ['pending', 'in_progress']:
-                    raise HTTPException(
-                        status_code=202,
-                        detail="Analysis still in progress"
-                    )
+        # Check cache first
+        if interview_id in analysis_results_cache:
+            results = analysis_results_cache[interview_id]
             
-            raise HTTPException(
-                status_code=404,
-                detail="Analysis results not found"
+            return AnalysisResultResponse(
+                interview_id=interview_id,
+                status=results.get('analysis_status', 'unknown'),
+                overall_score=results.get('overall_score'),
+                cv_analysis=results.get('cv_analysis'),
+                transcript_analysis=results.get('transcript_analysis'),
+                ai_insights=results.get('ai_insights'),
+                error=results.get('error')
             )
         
-        results = analysis_results_cache[interview_id]
+        # Cache miss - check database
+        from app.services.supabase_service import SupabaseService
+        supabase = SupabaseService()
         
-        return AnalysisResultResponse(
-            interview_id=interview_id,
-            status=results.get('analysis_status', 'unknown'),
-            overall_score=results.get('overall_score'),
-            cv_analysis=results.get('cv_analysis'),
-            transcript_analysis=results.get('transcript_analysis'),
-            ai_insights=results.get('ai_insights'),
-            error=results.get('error')
+        if not supabase.client:
+            raise HTTPException(status_code=500, detail="Database not configured")
+        
+        db_result = supabase.client.table('analysis').select('*').eq('interview_id', interview_id).execute()
+        
+        if db_result.data and len(db_result.data) > 0:
+            analysis_record = db_result.data[0]
+            detailed = analysis_record.get('detailed_analysis')
+            
+            # Import json to parse if string
+            import json
+            if isinstance(detailed, str):
+                detailed = json.loads(detailed)
+            
+            logger.info(f"[Analysis API] Found results in database for {interview_id}")
+            
+            return AnalysisResultResponse(
+                interview_id=interview_id,
+                status=analysis_record.get('status', 'completed'),
+                overall_score=detailed.get('overall_score') if detailed else None,
+                cv_analysis=detailed.get('cv_analysis') if detailed else None,
+                transcript_analysis=detailed.get('transcript_analysis') if detailed else None,
+                ai_insights=detailed.get('ai_insights') if detailed else None,
+                error=detailed.get('error') if detailed else None
+            )
+        
+        # Not in cache or database
+        if interview_id in analysis_status_cache:
+            status = analysis_status_cache[interview_id]
+            if status['status'] in ['pending', 'in_progress']:
+                raise HTTPException(
+                    status_code=202,
+                    detail="Analysis still in progress"
+                )
+        
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis results not found"
         )
         
     except HTTPException:

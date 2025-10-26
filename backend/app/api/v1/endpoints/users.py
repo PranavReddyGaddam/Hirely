@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.interview import InterviewList
 from app.services.user_service import UserService
+from app.services.interview_service import InterviewService
 from app.core.auth import get_current_user
 
 router = APIRouter()
@@ -9,6 +11,20 @@ router = APIRouter()
 async def get_current_user_info(current_user = Depends(get_current_user)):
     """Get current user information"""
     return current_user
+
+@router.get("/me/interviews")
+async def get_current_user_interviews(
+    skip: int = 0,
+    limit: int = 100,
+    current_user = Depends(get_current_user)
+):
+    """Get current user's interviews"""
+    interview_service = InterviewService()
+    try:
+        interviews = await interview_service.get_user_interviews(current_user.id, skip, limit)
+        return interviews
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/test")
 async def test_endpoint():

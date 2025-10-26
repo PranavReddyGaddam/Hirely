@@ -3,12 +3,21 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { User, LogOut, Settings } from 'lucide-react';
 
-export default function Header() {
+interface HeaderProps {
+  variant?: 'dark' | 'light';
+}
+
+export default function Header({ variant = 'dark' }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const { logout, isAuthenticated, user } = useAuth();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Color classes based on variant
+  const logoColor = variant === 'light' ? 'text-white' : 'text-slate-900';
+  const linkColor = variant === 'light' ? 'text-white/90 hover:text-white' : 'text-slate-600 hover:text-slate-900';
+  const mobileButtonColor = variant === 'light' ? 'text-white' : 'text-slate-900';
 
   const handleLogout = async () => {
     await logout();
@@ -42,7 +51,7 @@ export default function Header() {
         <div className="flex items-center justify-between py-6">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link to="/" className="text-2xl font-bold text-slate-900">
+            <Link to="/" className={`text-2xl font-bold ${logoColor}`}>
               Hirely
             </Link>
           </div>
@@ -50,13 +59,13 @@ export default function Header() {
           {/* Desktop Navigation - Centered */}
           <div className="flex-grow flex justify-center">
             <div className="hidden md:flex items-center space-x-8">
-              <Link to={isAuthenticated ? "/dashboard" : "/"} className="text-slate-600 hover:text-slate-900 transition-colors">
+              <Link to={isAuthenticated ? "/dashboard" : "/"} className={`${linkColor} transition-colors`}>
                 {isAuthenticated ? 'Dashboard' : 'Home'}
               </Link>
-              <Link to={isAuthenticated ? "/interview/setup" : "/login"} className="text-slate-600 hover:text-slate-900 transition-colors">
+              <Link to={isAuthenticated ? "/interview/setup" : "/login"} className={`${linkColor} transition-colors`}>
                 {isAuthenticated ? 'New Interview' : 'Demo'}
               </Link>
-              <Link to="/about" className="text-slate-600 hover:text-slate-900 transition-colors">
+              <Link to="/about" className={`${linkColor} transition-colors`}>
                 How it works
               </Link>
             </div>
@@ -131,7 +140,7 @@ export default function Header() {
           {/* Mobile menu button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 text-slate-900"
+            className={`md:hidden p-2 ${mobileButtonColor}`}
           >
             <svg
               className="w-6 h-6"
@@ -154,13 +163,13 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="md:hidden py-4 space-y-4">
-            <Link to={isAuthenticated ? "/dashboard" : "/"} className="block text-slate-600 hover:text-slate-900" onClick={() => setIsMenuOpen(false)}>
+            <Link to={isAuthenticated ? "/dashboard" : "/"} className={`block ${linkColor}`} onClick={() => setIsMenuOpen(false)}>
               {isAuthenticated ? 'Dashboard' : 'Home'}
             </Link>
-            <Link to={isAuthenticated ? "/interview/setup" : "/login"} className="block text-slate-600 hover:text-slate-900" onClick={() => setIsMenuOpen(false)}>
+            <Link to={isAuthenticated ? "/interview/setup" : "/login"} className={`block ${linkColor}`} onClick={() => setIsMenuOpen(false)}>
               {isAuthenticated ? 'New Interview' : 'Demo'}
             </Link>
-            <Link to="/about" className="block text-slate-600 hover:text-slate-900" onClick={() => setIsMenuOpen(false)}>
+            <Link to="/about" className={`block ${linkColor}`} onClick={() => setIsMenuOpen(false)}>
               How it works
             </Link>
             

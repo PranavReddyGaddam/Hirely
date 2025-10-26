@@ -33,7 +33,9 @@ class InterviewAnalysisOrchestrator:
         self.s3_service = S3Service()
         self.elevenlabs_service = ElevenLabsService()
         self.transcript_analyzer = TranscriptAnalyzer()
-        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY") or settings.OPENROUTER_API_KEY if hasattr(settings, 'OPENROUTER_API_KEY') else None
+        # Use Groq instead of OpenRouter for AI insights
+        from app.services.groq_service import GroqService
+        self.groq_service = GroqService()
     
     async def analyze_interview(
         self,
@@ -57,6 +59,7 @@ class InterviewAnalysisOrchestrator:
         analysis_start_time = time.time()
         results = {
             "interview_id": interview_id,
+            "user_id": user_id,
             "analysis_status": "in_progress",
             "cv_analysis": None,
             "transcript_analysis": None,
@@ -75,8 +78,8 @@ class InterviewAnalysisOrchestrator:
             # Step 2: WAIT for video to be uploaded to S3 and stored in database
             if not interview.video_storage_path:
                 logger.warning(f"[Analysis Orchestrator] ⏳ No video_storage_path yet, waiting for upload...")
-                # Retry logic: wait up to 30 seconds for video to appear
-                max_retries = 30
+                # Retry logic: wait up to 5 minutes for video to appear (video upload can be slow)
+                max_retries = 300  # 5 minutes (300 seconds)
                 retry_count = 0
                 while not interview.video_storage_path and retry_count < max_retries:
                     await asyncio.sleep(1)
@@ -85,9 +88,13 @@ class InterviewAnalysisOrchestrator:
                         logger.info(f"[Analysis Orchestrator] ✅ Video found after {retry_count + 1}s: {interview.video_storage_path}")
                         break
                     retry_count += 1
+                    
+                    # Log progress every 30 seconds
+                    if retry_count % 30 == 0:
+                        logger.info(f"[Analysis Orchestrator] Still waiting for video... ({retry_count}s elapsed)")
                 
                 if not interview.video_storage_path:
-                    logger.error(f"[Analysis Orchestrator] ❌ Video still not found after 30s, skipping CV analysis")
+                    logger.error(f"[Analysis Orchestrator] ❌ Video still not found after {max_retries}s, skipping CV analysis")
                     # Continue without CV analysis
             
             # Step 3: Get video from S3 and run CV analysis
@@ -294,12 +301,12 @@ class InterviewAnalysisOrchestrator:
         transcript_analysis: Optional[Dict],
         interview_type: str
     ) -> Dict[str, Any]:
-        """Generate AI insights using OpenRouter (Claude Sonnet 4.5)"""
+        """Generate AI insights using Groq"""
         
-        if not self.openrouter_api_key:
-            logger.error("[AI Insights] OpenRouter API key not configured")
+        if not self.groq_service or not self.groq_service.client:
+            logger.error("[AI Insights] Groq API key not configured")
             return {
-                "feedback": "AI insights generation failed. OpenRouter API key not configured.",
+                "feedback": "AI insights generation failed. Groq API key not configured.",
                 "error": "Missing API key"
             }
         
@@ -307,67 +314,52 @@ class InterviewAnalysisOrchestrator:
             # Build comprehensive prompt
             prompt = self._build_analysis_prompt(cv_analysis, transcript_analysis, interview_type)
             
-            system_prompt = """You are an expert interview coach providing comprehensive feedback.
-            
-Your task is to analyze the candidate's performance across multiple dimensions:
-- Visual behavior (from CV analysis)
-- Communication skills (from transcript analysis)
-- Overall interview performance
+            system_prompt = """You are an expert interview performance analyst and career coach. 
 
-Provide:
-1. Executive Summary (2-3 sentences)
-2. Top 3 Strengths (specific and actionable)
-3. Top 3 Areas for Improvement (specific and actionable)
-4. Detailed Recommendations (5-7 items)
-5. Next Steps (3-4 action items)
+Your role is to ANALYZE a candidate's completed interview performance based on objective metrics and provide constructive feedback.
 
-Be encouraging but honest. Focus on actionable feedback."""
+You will receive:
+- Visual behavior metrics (facial expressions, eye contact, posture, engagement)
+- Communication metrics (filler words, speaking pace, vocabulary)
+- Overall performance scores
+
+Your response should include:
+1. **Executive Summary** (2-3 sentences summarizing overall performance)
+2. **Top 3 Strengths** (specific observations from the data with examples)
+3. **Top 3 Areas for Improvement** (specific, actionable suggestions based on the metrics)
+4. **Detailed Recommendations** (5-7 concrete action items to improve)
+5. **Next Steps** (3-4 practical steps the candidate can take immediately)
+
+Guidelines:
+- Be data-driven: reference specific metrics from the analysis
+- Be encouraging yet honest
+- Focus on actionable, practical advice
+- Use a professional but supportive tone
+- DO NOT ask questions - this is POST-interview analysis"""
             
-            # Call OpenRouter API
-            response = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.openrouter_api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "http://localhost:8000",
-                    "X-Title": "Hirely Interview Analysis",
-                },
-                json={
-                    "model": "anthropic/claude-sonnet-4.5",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 2000
-                },
-                timeout=60
+            # Call Groq API
+            response = self.groq_service.client.chat.completions.create(
+                model="llama-3.1-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2000
             )
             
-            if response.status_code != 200:
-                logger.error(f"[AI Insights] OpenRouter API error: {response.status_code} - {response.text}")
-                raise Exception(f"OpenRouter API returned status {response.status_code}")
-            
-            data = response.json()
-            feedback_text = data['choices'][0]['message']['content']
-            usage = data.get('usage', {})
-            
-            return {
-                "feedback": feedback_text,
-                "model": "anthropic/claude-sonnet-4.5",
-                "tokens_used": {
-                    "prompt": usage.get('prompt_tokens', 0),
-                    "completion": usage.get('completion_tokens', 0),
-                    "total": usage.get('total_tokens', 0)
+            if response.choices and len(response.choices) > 0:
+                feedback_text = response.choices[0].message.content
+                logger.info(f"[AI Insights] ✅ Generated {len(feedback_text)} chars of feedback")
+                
+                return {
+                    "feedback": feedback_text,
+                    "model": "llama-3.1-70b-versatile"
                 }
-            }
+            else:
+                logger.error("[AI Insights] No choices in Groq response")
+                raise Exception("Invalid response from Groq")
             
-        except requests.exceptions.Timeout:
-            logger.error("[AI Insights] OpenRouter API request timed out")
-            return {
-                "feedback": "AI insights generation timed out. Please try again later.",
-                "error": "Request timeout"
-            }
         except Exception as e:
             logger.error(f"[AI Insights] Error generating insights: {e}", exc_info=True)
             return {
@@ -503,12 +495,33 @@ Be encouraging but honest. Focus on actionable feedback."""
     async def _save_analysis_results(self, interview_id: str, results: Dict[str, Any]) -> None:
         """Save analysis results to database"""
         try:
-            # Save to Supabase or store in sessionStorage
-            # For now, we'll just log that we would save it
-            logger.info(f"[Analysis Orchestrator] Would save results for interview {interview_id}")
-            # TODO: Implement database save
+            logger.info(f"[Analysis Orchestrator] Saving results to database for interview {interview_id}")
+            
+            # Prepare analysis data for database
+            analysis_data = {
+                'interview_id': interview_id,
+                'user_id': results.get('user_id'),  # Get from results if available
+                'status': results.get('analysis_status', 'completed'),
+                'overall_score': results.get('overall_score', {}).get('overall_score'),
+                'detailed_analysis': results,  # Store full results as JSONB
+                'created_at': datetime.utcnow().isoformat(),
+                'completed_at': datetime.utcnow().isoformat() if results.get('analysis_status') == 'completed' else None
+            }
+            
+            # Check if analysis already exists
+            existing = self.supabase_service.client.table('analysis').select('id').eq('interview_id', interview_id).execute()
+            
+            if existing.data and len(existing.data) > 0:
+                # Update existing record
+                result = self.supabase_service.client.table('analysis').update(analysis_data).eq('interview_id', interview_id).execute()
+                logger.info(f"[Analysis Orchestrator] ✅ Updated existing analysis record for {interview_id}")
+            else:
+                # Insert new record
+                result = self.supabase_service.client.table('analysis').insert(analysis_data).execute()
+                logger.info(f"[Analysis Orchestrator] ✅ Saved new analysis record for {interview_id}")
+            
         except Exception as e:
-            logger.error(f"[Analysis Orchestrator] Error saving results: {e}")
+            logger.error(f"[Analysis Orchestrator] Error saving results: {e}", exc_info=True)
     
     async def get_analysis_status(self, interview_id: str) -> Dict[str, str]:
         """Check if analysis is complete for an interview"""

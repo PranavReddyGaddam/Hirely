@@ -78,13 +78,31 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setInterviews(data.interviews || []);
+        
+        // Map backend data to frontend format
+        const mappedInterviews = (data.interviews || []).map((i: any) => ({
+          id: i.id,
+          role: i.position_title || 'Unknown Role',
+          company: i.company_name || 'Unknown Company',
+          date: i.created_at,
+          focus: i.interview_type || 'mixed',
+          difficulty: 'intermediate', // Default since backend doesn't have this
+          duration: i.duration_minutes || 0,
+          score: 0, // Will be calculated from analysis if available
+          questions: i.questions?.length || 0,
+          overall_score: i.overall_score,
+          cv_analysis: i.cv_analysis,
+          transcript_analysis: i.transcript_analysis,
+          ai_insights: i.ai_insights
+        }));
+        
+        setInterviews(mappedInterviews);
         
         // Calculate stats
-        const totalInterviews = data.interviews?.length || 0;
-        const scores = data.interviews?.map((i: Interview) => i.score).filter(Boolean) || [];
+        const totalInterviews = mappedInterviews.length;
+        const scores = mappedInterviews.map((i: Interview) => i.score).filter(Boolean);
         const averageScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-        const totalDuration = data.interviews?.reduce((sum: number, i: Interview) => sum + (i.duration || 0), 0) || 0;
+        const totalDuration = mappedInterviews.reduce((sum: number, i: Interview) => sum + (i.duration || 0), 0);
         
         // Calculate improvement (compare last 2 interviews)
         let improvement = 0;
@@ -166,6 +184,7 @@ export default function Dashboard() {
   };
 
   const getDifficultyColor = (difficulty: string) => {
+    if (!difficulty) return 'bg-gray-100 text-gray-800';
     switch (difficulty.toLowerCase()) {
       case 'beginner': return 'bg-green-100 text-green-800';
       case 'intermediate': return 'bg-yellow-100 text-yellow-800';
@@ -175,10 +194,13 @@ export default function Dashboard() {
   };
 
   const getFocusColor = (focus: string) => {
+    if (!focus) return 'bg-gray-100 text-gray-800';
     switch (focus.toLowerCase()) {
       case 'technical': return 'bg-blue-100 text-blue-800';
       case 'behavioral': return 'bg-purple-100 text-purple-800';
+      case 'system_design': 
       case 'system-design': return 'bg-orange-100 text-orange-800';
+      case 'mixed': return 'bg-indigo-100 text-indigo-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };

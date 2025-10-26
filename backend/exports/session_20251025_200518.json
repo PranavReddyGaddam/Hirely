@@ -1,0 +1,70 @@
+{
+  "session_id": "20251025_200518",
+  "session_start": "2025-10-25T20:05:18.831703",
+  "total_frames": 1,
+  "statistics": {
+    "total_frames": 1,
+    "duration_seconds": 0.065915,
+    "expressions": {
+      "calm": {
+        "count": 1,
+        "percentage": 100.0
+      }
+    },
+    "postures": {
+      "unknown": {
+        "count": 1,
+        "percentage": 100.0
+      }
+    },
+    "avg_attention_score": 0.68,
+    "attention_below_50_percent": 0.0,
+    "total_alerts": 0
+  },
+  "data": [
+    {
+      "frame_number": 1,
+      "elapsed_seconds": 0.065915,
+      "expression": "calm",
+      "confidence": 0.0,
+      "expression_confidence": 0.0,
+      "ear_left": 0.0,
+      "ear_right": 0.0,
+      "ear_avg": 0.0,
+      "mar": 0.0,
+      "smile_intensity": 0.0,
+      "is_blinking": false,
+      "blink_count": 0,
+      "blink_rate": 0.0,
+      "stress_level": "unknown",
+      "head_yaw": 0.0,
+      "head_pitch": 0.0,
+      "head_roll": 0.0,
+      "head_direction": "center",
+      "is_looking_at_camera": false,
+      "engagement_score": 0.5,
+      "is_looking_away": false,
+      "face_detected": false,
+      "posture_status": "unknown",
+      "neck_angle": 0.0,
+      "torso_angle": 0.0,
+      "is_slouching": false,
+      "is_fidgeting_body": false,
+      "face_touching": false,
+      "hand_fidgeting": false,
+      "excessive_gesturing": false,
+      "face_touch_count": 0,
+      "attention_score": 0.68,
+      "expression_score": 0.8,
+      "posture_score": 0.6,
+      "gesture_score": 1.0,
+      "gaze_score": 0.5,
+      "avg_attention": 0.68,
+      "alerts": [],
+      "alert_count": 0,
+      "is_engaged": false,
+      "is_distracted": false,
+      "timestamp": "2025-10-25T20:05:18.897615"
+    }
+  ]
+}

@@ -101,42 +101,42 @@ export default function AnalyticsDashboard() {
         backgroundAttachment: 'fixed'
       }}>
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-        <Header />
+        <Header variant="light" />
         <div className="relative z-10 flex items-center justify-center min-h-[80vh]">
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-12 max-w-md mx-auto px-8">
             {/* Animated Spinner */}
             <div className="relative w-32 h-32 mx-auto mb-8">
-              <div className="absolute inset-0 border-8 border-white/20 rounded-full"></div>
+              <div className="absolute inset-0 border-8 border-gray-300 rounded-full"></div>
               <div 
-                className="absolute inset-0 border-8 border-white rounded-full border-t-transparent animate-spin"
+                className="absolute inset-0 border-8 border-blue-500 rounded-full border-t-transparent animate-spin"
               ></div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">{progress}%</span>
+                <span className="text-2xl font-bold text-gray-900">{progress}%</span>
               </div>
             </div>
 
-            <h2 className="text-3xl font-bold text-white mb-3 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3 text-center">
               Analyzing Your Interview
             </h2>
-            <p className="text-white/80 mb-6 text-center">{statusMessage}</p>
+            <p className="text-gray-800 mb-6 text-center">{statusMessage}</p>
 
             {/* Progress Bar */}
-            <div className="w-full bg-white/20 rounded-full h-3 mb-4">
+            <div className="w-full bg-gray-200/50 rounded-full h-3 mb-4">
               <div 
                 className="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full transition-all duration-500"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
 
-            <div className="space-y-2 text-sm text-white/90">
+            <div className="space-y-2 text-sm text-gray-800">
               <p>Video uploaded to secure storage</p>
-              <p className={progress > 30 ? 'text-white' : 'text-white/60'}>
+              <p className={progress > 30 ? 'text-gray-900 font-medium' : 'text-gray-600'}>
                 Analyzing visual behavior (facial expressions, posture, eye contact)
               </p>
-              <p className={progress > 60 ? 'text-white' : 'text-white/60'}>
+              <p className={progress > 60 ? 'text-gray-900 font-medium' : 'text-gray-600'}>
                 Analyzing communication (filler words, pace, vocabulary)
               </p>
-              <p className={progress > 90 ? 'text-white' : 'text-white/60'}>
+              <p className={progress > 90 ? 'text-gray-900 font-medium' : 'text-gray-600'}>
                 Generating AI-powered insights
               </p>
             </div>
@@ -155,11 +155,11 @@ export default function AnalyticsDashboard() {
         backgroundAttachment: 'fixed'
       }}>
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-        <Header />
+        <Header variant="light" />
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="text-center max-w-md mx-auto px-4">
             <h2 className="text-2xl font-bold text-red-600 mb-3">Analysis Error</h2>
-            <p className="text-white/70 mb-6">{error}</p>
+            <p className="text-gray-800 mb-6">{error}</p>
             <button
               onClick={() => navigate('/profile')}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -178,7 +178,7 @@ export default function AnalyticsDashboard() {
         <Header />
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="text-center">
-            <p className="text-white/70">No analysis data available</p>
+            <p className="text-gray-800">No analysis data available</p>
           </div>
         </div>
       </div>
@@ -197,15 +197,15 @@ export default function AnalyticsDashboard() {
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
       
       <div className="relative z-10">
-        <Header />
+        <Header variant="light" />
         
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 pt-24 pb-8">
           {/* Header Section */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Interview Analysis Report
             </h1>
-            <p className="text-white/80">Comprehensive performance breakdown</p>
+            <p className="text-gray-800">Comprehensive performance breakdown</p>
           </div>
 
           {/* Overall Score Card */}
@@ -365,24 +365,6 @@ export default function AnalyticsDashboard() {
                 </div>
               )}
 
-              {/* Speaking Pace */}
-              {transcript_analysis.speaking_pace && (
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-3">Speaking Pace</h4>
-                  <div className="space-y-2">
-                    <div className="bg-white/40 rounded-lg p-3">
-                      <div className="text-xs text-gray-600 mb-1">Words Per Minute</div>
-                      <div className="text-2xl font-bold text-gray-800">
-                        {transcript_analysis.speaking_pace.words_per_minute} WPM
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {transcript_analysis.speaking_pace.pace_feedback}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Vocabulary Diversity */}
               {transcript_analysis.word_diversity && (
                 <div className="mb-6">
@@ -409,23 +391,6 @@ export default function AnalyticsDashboard() {
                   </div>
                 </div>
               )}
-
-              {/* Communication Score */}
-              {transcript_analysis.communication_score && (
-                <div className="bg-white/30 backdrop-blur-sm border border-white/20 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm text-gray-600 mb-1">Communication Score</div>
-                      <div className="text-3xl font-bold text-gray-800">
-                        {transcript_analysis.communication_score.score}/100
-                      </div>
-                    </div>
-                    <div className="text-4xl font-bold text-gray-800">
-                      {transcript_analysis.communication_score.grade}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -442,34 +407,92 @@ export default function AnalyticsDashboard() {
           </div>
         )}
 
-        {/* Full Transcript Section */}
-        {transcript_analysis && (transcript_analysis.full_transcript || transcript_analysis.messages) && (
+        {/* Performance Metrics Chart */}
+        {overall_score && (
           <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl p-8 mb-8">
             <h3 className="text-2xl font-bold text-gray-800 mb-6">
-              Full Transcript
+              Performance Breakdown
             </h3>
-            <div className="bg-white/30 backdrop-blur-sm rounded-xl p-6 max-h-96 overflow-y-auto">
-              {/* Display formatted transcript from messages if available */}
-              {transcript_analysis.messages && transcript_analysis.messages.length > 0 ? (
-                <div className="space-y-3">
-                  {transcript_analysis.messages.map((msg: any, index: number) => (
-                    <div key={index} className={`p-3 rounded-lg ${msg.speaker === 'user' ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                      <div className="text-xs font-semibold text-gray-500 mb-1">
-                        {msg.speaker === 'user' ? 'You' : 'Interviewer'}
-                      </div>
-                      <p className="text-gray-700">{msg.text}</p>
-                    </div>
-                  ))}
+            <div className="space-y-6">
+              {/* Visual Behavior Score Bar */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold text-gray-800">Visual Behavior</span>
+                  <span className="text-sm font-bold text-gray-900">{overall_score.cv_score}/100</span>
                 </div>
-              ) : (
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {transcript_analysis.full_transcript}
-                </p>
+                <div className="w-full bg-gray-200/50 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-4 rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${overall_score.cv_score}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Communication Score Bar */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold text-gray-800">Communication</span>
+                  <span className="text-sm font-bold text-gray-900">{overall_score.communication_score}/100</span>
+                </div>
+                <div className="w-full bg-gray-200/50 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-4 rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${overall_score.communication_score}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Sub-metrics from CV Analysis */}
+              {cv_analysis && (
+                <>
+                  {cv_analysis.attention?.overall_engagement?.avg_attention_score && (
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">Engagement</span>
+                        <span className="text-sm font-bold text-gray-800">{Math.round(cv_analysis.attention.overall_engagement.avg_attention_score * 100)}/100</span>
+                      </div>
+                      <div className="w-full bg-gray-200/50 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${cv_analysis.attention.overall_engagement.avg_attention_score * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {cv_analysis.head_pose?.camera_focus?.looking_at_camera_percentage && (
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">Eye Contact</span>
+                        <span className="text-sm font-bold text-gray-800">{Math.round(cv_analysis.head_pose.camera_focus.looking_at_camera_percentage)}/100</span>
+                      </div>
+                      <div className="w-full bg-gray-200/50 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${cv_analysis.head_pose.camera_focus.looking_at_camera_percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Sub-metrics from Transcript Analysis */}
+              {transcript_analysis?.word_diversity && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">Vocabulary Diversity</span>
+                    <span className="text-sm font-bold text-gray-800">{Math.round(transcript_analysis.word_diversity.diversity_ratio * 100)}/100</span>
+                  </div>
+                  <div className="w-full bg-gray-200/50 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${transcript_analysis.word_diversity.diversity_ratio * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
               )}
             </div>
-            <p className="text-sm text-gray-600 mt-3">
-              Tip: This shows your actual spoken words during the interview
-            </p>
           </div>
         )}
 

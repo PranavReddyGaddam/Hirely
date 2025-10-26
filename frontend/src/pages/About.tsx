@@ -62,7 +62,7 @@ export default function About() {
                   </div>
 
                   {/* Card 3 - Advanced AI Engine (Top-right, spans 2 cols, 2 rows) */}
-                  <div className="col-span-2 row-span-2 bg-white/10 backdrop-blur-md rounded-2xl p-6 flex flex-col justify-between hover:scale-105 hover:shadow-lg transition-all duration-300" style={{ border: '2px solid #e4f223', boxShadow: '0 10px 25px rgba(228, 242, 35, 0.3)' }}>
+                  <div className="col-span-2 row-span-2 bg-white/30 backdrop-blur-md rounded-2xl p-6 flex flex-col justify-between hover:scale-105 hover:shadow-lg transition-all duration-300" style={{ border: '2px solid #e4f223', boxShadow: '0 10px 25px rgba(228, 242, 35, 0.3)' }}>
                     <div className="flex items-center gap-2">
                       <span className="text-black text-sm font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: '#e4f223' }}>03</span>
                     </div>

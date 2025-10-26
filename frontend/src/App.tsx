@@ -59,7 +59,7 @@ function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Header Navigation */}
-      <Header />
+      <Header variant="light" />
 
       {/* Hero Section with Blue Gradient Background */}
       <div className="relative min-h-screen flex flex-col justify-between overflow-hidden">
