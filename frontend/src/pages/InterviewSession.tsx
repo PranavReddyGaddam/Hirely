@@ -25,6 +25,7 @@ export default function InterviewSession() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [interviewData, setInterviewData] = useState<any>(null);
+  const [allQuestions, setAllQuestions] = useState<any[]>([]); // Store all questions for context
   
   // Voice Agent state
   const [voiceAgent, setVoiceAgent] = useState<InterviewVoiceAgent | null>(null);
@@ -685,6 +686,41 @@ export default function InterviewSession() {
     }
   };
 
+  // Fetch interview context with all questions for agent
+  const fetchInterviewContext = async () => {
+    if (!interviewId) return null;
+    
+    try {
+      const token = localStorage.getItem('hirely_token');
+      if (!token) {
+        console.error('[Context] No auth token');
+        return null;
+      }
+      
+      console.log('[Context] Fetching full interview context with questions...');
+      const response = await fetch(`http://localhost:8000/api/v1/interviews/${interviewId}/context`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const context = await response.json();
+        console.log('[Context] Fetched interview context:', context);
+        setAllQuestions(context.questions || []);
+        setTotalQuestions(context.total_questions || 0);
+        return context;
+      } else {
+        console.error('[Context] Failed to fetch:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('[Context] Error fetching context:', error);
+      return null;
+    }
+  };
+
   // Voice Agent functions
   const createVoiceAgentForInterview = async () => {
     console.log('Creating voice agent for full interview...', { interviewId, interviewType, interviewData });
@@ -697,6 +733,9 @@ export default function InterviewSession() {
     setVoiceAgentError(null);
     
     try {
+      // Fetch full interview context with all questions first
+      await fetchInterviewContext();
+      
       console.log('Calling voiceAgentService.createInterviewAgent...');
       const agent = await voiceAgentService.createInterviewAgent({
         interviewId,
@@ -1050,11 +1089,16 @@ export default function InterviewSession() {
             agentId={voiceAgent.agentId}
             agentName={voiceAgent.agentName}
             isActive={isVoiceAgentActive}
-            onStart={() => console.log('Voice agent started for interview')}
+            onStart={() => console.log('[InterviewSession] Voice agent started for interview')}
             onEnd={stopVoiceAgent}
             onError={handleVoiceAgentError}
             onConversationIdReady={handleConversationIdReady}
             className="w-full"
+            interviewId={interviewId}
+            interviewData={interviewData}
+            currentQuestionIndex={questionIndex}
+            totalQuestions={totalQuestions}
+            questions={allQuestions}
           />
         </div>
       )}

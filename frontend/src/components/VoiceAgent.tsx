@@ -10,6 +10,13 @@ interface VoiceAgentProps {
   onError?: (error: string) => void;
   onConversationIdReady?: (conversationId: string) => void;
   className?: string;
+  
+  // Context-aware interview data
+  interviewId?: string;
+  interviewData?: any;
+  currentQuestionIndex?: number;
+  totalQuestions?: number;
+  questions?: any[];
 }
 
 export default function VoiceAgent({
@@ -20,7 +27,14 @@ export default function VoiceAgent({
   onEnd,
   onError,
   onConversationIdReady,
-  className = ''
+  className = '',
+  
+  // Context-aware props
+  interviewId,
+  interviewData,
+  currentQuestionIndex = 0,
+  totalQuestions = 0,
+  questions = []
 }: VoiceAgentProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
@@ -34,6 +48,18 @@ export default function VoiceAgent({
   const isInitializingRef = useRef<boolean>(false);
   const isCleaningUpRef = useRef<boolean>(false);
   const hasInitializedRef = useRef<boolean>(false);
+  
+  // Refs for live data access (avoid stale closures)
+  const currentQuestionIndexRef = useRef(currentQuestionIndex);
+  const totalQuestionsRef = useRef(totalQuestions);
+  const questionsRef = useRef(questions);
+  
+  // Update refs when props change
+  useEffect(() => {
+    currentQuestionIndexRef.current = currentQuestionIndex;
+    totalQuestionsRef.current = totalQuestions;
+    questionsRef.current = questions;
+  }, [currentQuestionIndex, totalQuestions, questions]);
   
   // Smart interruption tracking refs (for future client-side implementation)
   const silenceTimerRef = useRef<number | null>(null);
@@ -75,11 +101,66 @@ export default function VoiceAgent({
       hasInitializedRef.current = true;
       setStatus('Connecting to interviewer...');
       console.log('[VoiceAgent] Starting session for agent:', agentId);
+      
+      // Get auth token for server tools
+      const token = localStorage.getItem('hirely_token');
+      
+      // Prepare dynamic variables for context-aware agent
+      const dynamicVariables: any = {};
+      
+      if (interviewId && interviewData && questions.length > 0) {
+        // Build ALL questions as formatted string (agent gets full context)
+        const allQuestionsText = questions.map((q, idx) => 
+          `Question ${idx + 1}: ${q.question_text}`
+        ).join('\n');
         
-      // Initialize ElevenLabs conversation with enhanced noise reduction
+        // Build comprehensive dynamic variables with ALL questions
+        Object.assign(dynamicVariables, {
+          interview_id: interviewId,
+          company_name: interviewData.company_name || 'Company',
+          position_title: interviewData.position_title || 'Position',
+          interview_type: interviewData.interview_type || 'mixed',
+          total_questions: questions.length,
+          all_questions: allQuestionsText, // ✅ ALL questions provided at start
+          current_question_number: currentQuestionIndex + 1, // ✅ Will be updated live via tool
+          candidate_name: 'Candidate',
+          secret__auth_token: token || ''
+        });
+        
+        console.log('[VoiceAgent] Dynamic variables prepared:', {
+          interview_id: interviewId,
+          company: dynamicVariables.company_name,
+          position: dynamicVariables.position_title,
+          questions_loaded: questions.length,
+          current_question: dynamicVariables.current_question_number
+        });
+      }
+        
+      // Initialize ElevenLabs conversation with dynamic variables and client tools
       const conversation = await Conversation.startSession({
         agentId: agentId,
         connectionType: 'websocket',
+        
+        // Inject dynamic variables for context awareness
+        dynamicVariables: Object.keys(dynamicVariables).length > 0 ? dynamicVariables : undefined,
+        
+        // Client tools for LIVE real-time state access
+        // SIMPLIFIED: Agent has all questions in context, only needs current number
+        clientTools: interviewId ? {
+          // Get LIVE current question NUMBER (agent looks up question from initial context)
+          getCurrentQuestionNumber: async () => {
+            const currentNum = currentQuestionIndexRef.current + 1;
+            const total = questionsRef.current.length;
+            
+            console.log('[Client Tool] getCurrentQuestionNumber:', currentNum, 'of', total);
+            
+            return JSON.stringify({
+              current_question_number: currentNum,
+              total_questions: total
+            });
+          }
+        } : undefined,
+        
         onConnect: () => {
           console.log('[VoiceAgent] Connected to ElevenLabs');
           setIsConnected(true);
@@ -95,8 +176,11 @@ export default function VoiceAgent({
           onEnd?.();
         },
         onMessage: (message: any) => {
-          // Message handler - not used for transcript
+          // Message handler - can be used for tool call monitoring
           console.log('[VoiceAgent] Message received:', message.type);
+          if (message.type === 'tool_call') {
+            console.log('[VoiceAgent] Tool called:', message.tool_name);
+          }
         },
         onError: (error: any) => {
           console.error('[VoiceAgent] Error:', error);

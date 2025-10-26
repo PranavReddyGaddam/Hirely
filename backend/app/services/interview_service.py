@@ -107,7 +107,7 @@ class InterviewService:
                 logger.error(f"Error generating questions with Groq: {e}")
                 questions = []
             
-            # Store questions in memory and database
+            # Store questions in memory for the interview session
             if questions:
                 logger.info(f"Storing {len(questions)} questions in memory for interview {interview_id}")
                 self.active_interviews[interview_id] = {
@@ -118,31 +118,6 @@ class InterviewService:
                     "created_at": datetime.utcnow().isoformat()
                 }
                 created_interview.questions = questions
-                
-                # Save questions to database
-                successful_questions = 0
-                for i, question in enumerate(questions):
-                    try:
-                        question_data = {
-                            "id": str(uuid.uuid4()),
-                            "interview_id": interview_id,
-                            "question_text": question.question_text,
-                            "question_type": question.question_type,
-                            "difficulty_level": question.difficulty_level,
-                            "expected_duration": question.expected_duration,
-                            "order_index": i,
-                            "created_at": datetime.utcnow().isoformat()
-                        }
-                        
-                        success = await self.supabase_service.create_question(question_data)
-                        if success:
-                            successful_questions += 1
-                        else:
-                            logger.warning(f"Failed to save question {i+1} to database")
-                    except Exception as e:
-                        logger.error(f"Error saving question {i+1} to database: {e}")
-                
-                logger.info(f"Successfully stored {successful_questions}/{len(questions)} questions in database")
                 logger.info(f"Successfully stored questions in memory for interview {interview_id}")
                 logger.info(f"Active interviews count: {len(self.active_interviews)}")
             else:

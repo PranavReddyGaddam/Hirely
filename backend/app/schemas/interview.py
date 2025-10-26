@@ -119,11 +119,6 @@ class InterviewResponse(BaseModel):
     video_url: Optional[str] = None
     video_size_bytes: Optional[int] = None
     video_uploaded_at: Optional[datetime] = None
-    # Analysis data fields (optional)
-    overall_score: Optional[Dict[str, Any]] = None
-    cv_analysis: Optional[Dict[str, Any]] = None
-    transcript_analysis: Optional[Dict[str, Any]] = None
-    ai_insights: Optional[Dict[str, Any]] = None
     
     class Config:
         from_attributes = True

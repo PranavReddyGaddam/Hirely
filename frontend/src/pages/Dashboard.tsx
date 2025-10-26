@@ -80,29 +80,21 @@ export default function Dashboard() {
         const data = await response.json();
         
         // Map backend data to frontend format
-        const mappedInterviews = (data.interviews || []).map((i: any) => {
-          // Calculate score from analysis data
-          let score = 0;
-          if (i.overall_score && typeof i.overall_score.overall_score === 'number') {
-            score = Math.round(i.overall_score.overall_score);
-          }
-          
-          return {
-            id: i.id,
-            role: i.position_title || 'Unknown Role',
-            company: i.company_name || 'Unknown Company',
-            date: i.created_at,
-            focus: i.interview_type || 'mixed',
-            difficulty: 'intermediate', // Default since backend doesn't have this
-            duration: i.duration_minutes || 0,
-            score: score,
-            questions: i.questions?.length || 0,
-            overall_score: i.overall_score,
-            cv_analysis: i.cv_analysis,
-            transcript_analysis: i.transcript_analysis,
-            ai_insights: i.ai_insights
-          };
-        });
+        const mappedInterviews = (data.interviews || []).map((i: any) => ({
+          id: i.id,
+          role: i.position_title || 'Unknown Role',
+          company: i.company_name || 'Unknown Company',
+          date: i.created_at,
+          focus: i.interview_type || 'mixed',
+          difficulty: 'intermediate', // Default since backend doesn't have this
+          duration: i.duration_minutes || 0,
+          score: 0, // Will be calculated from analysis if available
+          questions: i.questions?.length || 0,
+          overall_score: i.overall_score,
+          cv_analysis: i.cv_analysis,
+          transcript_analysis: i.transcript_analysis,
+          ai_insights: i.ai_insights
+        }));
         
         setInterviews(mappedInterviews);
         
@@ -137,41 +129,32 @@ export default function Dashboard() {
     setSelectedInterview(interview);
     setShowModal(true);
     
-    // Use the interview data we already have
-    const questions = interview.questions?.map((q: any, index: number) => ({
-      question: q.question_text || `Question ${index + 1}`,
-      answer: "Answer not available", // We don't store answers yet
-      score: Math.round(interview.overall_score?.overall_score || 0) // Use overall score as placeholder
-    })) || [];
-    
-    // Try to get AI insights if available
-    let feedback = 'No feedback available';
-    if (interview.ai_insights?.feedback) {
-      feedback = interview.ai_insights.feedback;
-    } else {
-      // Try to fetch from analysis API
-      try {
-        const token = localStorage.getItem('hirely_token');
-        const response = await fetch(`http://localhost:8000/api/v1/interview-analysis/results/${interview.id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          feedback = data.ai_insights?.feedback || 'No feedback available';
+    // Fetch detailed interview data
+    try {
+      const token = localStorage.getItem('hirely_token');
+      const response = await fetch(`http://localhost:8000/api/v1/interview-analysis/results/${interview.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      } catch (error) {
-        console.error('Error fetching AI insights:', error);
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Extract questions and answers from transcript analysis
+        const questions = extractQuestionsAndAnswers(data.transcript_analysis);
+        setInterviewDetail({
+          questions,
+          feedback: data.ai_insights?.feedback || 'No feedback available'
+        });
       }
+    } catch (error) {
+      console.error('Error fetching interview details:', error);
+      setInterviewDetail({
+        questions: [],
+        feedback: 'Error loading interview details'
+      });
     }
-    
-    setInterviewDetail({
-      questions,
-      feedback
-    });
   };
 
   const extractQuestionsAndAnswers = (transcriptAnalysis: any) => {
@@ -447,7 +430,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-gray-900">{selectedInterview.questions?.length || 0}</div>
+                    <div className="text-2xl font-bold text-gray-900">{selectedInterview.questions}</div>
                     <div className="text-sm text-gray-600">Questions Answered</div>
                   </div>
                   <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
@@ -455,11 +438,7 @@ export default function Dashboard() {
                     <div className="text-sm text-gray-600">Average Score</div>
                   </div>
                   <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {selectedInterview.questions?.length > 0 
-                        ? Math.round(selectedInterview.duration / selectedInterview.questions.length) 
-                        : 0} min
-                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{Math.round(selectedInterview.duration / selectedInterview.questions)} min</div>
                     <div className="text-sm text-gray-600">Time per Question</div>
                   </div>
                 </div>

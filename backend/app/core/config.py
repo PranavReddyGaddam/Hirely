@@ -49,9 +49,6 @@ class Settings(BaseSettings):
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
     
-    # BrightData
-    BRIGHTDATA_API_TOKEN: Optional[str] = None
-    
     # File Upload
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
     UPLOAD_DIRECTORY: str = "./uploads"

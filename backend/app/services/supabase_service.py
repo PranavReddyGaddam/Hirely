@@ -289,7 +289,7 @@ class SupabaseService:
     
     async def get_user_interviews(self, user_id: str, skip: int = 0, limit: int = 100) -> List[InterviewResponse]:
         """
-        Get user's interviews from Supabase with analysis data.
+        Get user's interviews from Supabase.
         
         Args:
             user_id: User ID to fetch interviews for
@@ -297,54 +297,18 @@ class SupabaseService:
             limit: Maximum number of records to return
             
         Returns:
-            List[InterviewResponse]: List of user interviews with analysis data
+            List[InterviewResponse]: List of user interviews
         """
         if not self.client:
             logger.error("Supabase client not initialized")
             return []
             
         try:
-            # Get interviews
+            # TODO: SUPABASE - Implement actual interview query
             response = self.client.table("interviews").select("*").eq("user_id", user_id).range(skip, skip + limit - 1).execute()
             
             interviews = []
             for interview_data in response.data:
-                interview_id = interview_data['id']
-                
-                # Get analysis data for this interview
-                analysis_response = self.client.table("analysis").select("detailed_analysis").eq("interview_id", interview_id).execute()
-                
-                if analysis_response.data and len(analysis_response.data) > 0:
-                    analysis_record = analysis_response.data[0]
-                    detailed_analysis = analysis_record.get('detailed_analysis', {})
-                    
-                    # Add analysis data to interview
-                    interview_data['overall_score'] = detailed_analysis.get('overall_score')
-                    interview_data['cv_analysis'] = detailed_analysis.get('cv_analysis')
-                    interview_data['transcript_analysis'] = detailed_analysis.get('transcript_analysis')
-                    interview_data['ai_insights'] = detailed_analysis.get('ai_insights')
-                
-                # Get questions for this interview
-                questions_response = self.client.table("questions").select("*").eq("interview_id", interview_id).order("order_index").execute()
-                
-                if questions_response.data:
-                    # Convert to QuestionResponse format
-                    questions = []
-                    for q in questions_response.data:
-                        questions.append({
-                            "id": q.get("id"),
-                            "interview_id": q.get("interview_id"),
-                            "question_text": q.get("question_text"),
-                            "question_type": q.get("question_type"),
-                            "difficulty_level": q.get("difficulty_level"),
-                            "expected_duration": q.get("expected_duration"),
-                            "order_index": q.get("order_index"),
-                            "created_at": q.get("created_at")
-                        })
-                    interview_data['questions'] = questions
-                else:
-                    interview_data['questions'] = []
-                
                 interviews.append(InterviewResponse(**interview_data))
             
             return interviews

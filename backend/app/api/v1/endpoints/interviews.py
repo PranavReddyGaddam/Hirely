@@ -241,3 +241,176 @@ async def chat_with_ai(
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{interview_id}/context")
+async def get_interview_context(
+    interview_id: str,
+    current_user = Depends(get_current_user)
+):
+    """
+    Get complete interview context for AI agent use.
+    Returns interview metadata, questions, and current state.
+    Used by ElevenLabs agent to understand interview structure.
+    """
+    interview_service = InterviewService()
+    try:
+        # Get base interview data
+        interview = await interview_service.get_interview(interview_id, current_user.id)
+        
+        # Get active session data from memory
+        session_data = interview_service.active_interviews.get(interview_id, {})
+        
+        # Build comprehensive context
+        questions = session_data.get("questions", [])
+        current_idx = session_data.get("current_question_index", 0)
+        
+        context = {
+            "interview_id": interview_id,
+            "interview_type": interview.interview_type,
+            "company_name": interview.company_name or "Company",
+            "position_title": interview.position_title or "Position",
+            "job_description": interview.job_description or "",
+            "duration_minutes": interview.duration_minutes,
+            "status": interview.status,
+            
+            # Questions data
+            "questions": [
+                {
+                    "id": f"q_{i}",
+                    "question_text": q.question_text,
+                    "question_type": q.question_type,
+                    "difficulty_level": q.difficulty_level,
+                    "expected_duration": q.expected_duration,
+                    "order_index": i + 1
+                }
+                for i, q in enumerate(questions)
+            ],
+            "total_questions": len(questions),
+            
+            # Current state
+            "current_question_index": current_idx,
+            "questions_asked": current_idx,
+            "questions_remaining": len(questions) - current_idx,
+            
+            # Progress tracking
+            "progress": {
+                "started_at": session_data.get("created_at"),
+                "responses_count": len(session_data.get("responses", []))
+            }
+        }
+        
+        return context
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{interview_id}/current-question-detail")
+async def get_current_question_detail(
+    interview_id: str,
+    current_user = Depends(get_current_user)
+):
+    """
+    Get detailed information about the current active question.
+    Used by AI agent to know what to ask right now.
+    """
+    interview_service = InterviewService()
+    try:
+        session_data = interview_service.active_interviews.get(interview_id)
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Interview session not found")
+        
+        questions = session_data.get("questions", [])
+        current_index = session_data.get("current_question_index", 0)
+        
+        if current_index >= len(questions):
+            return {
+                "has_more_questions": False,
+                "message": "All questions completed"
+            }
+        
+        current_q = questions[current_index]
+        
+        return {
+            "has_more_questions": True,
+            "current_question": {
+                "id": f"temp_{interview_id}_{current_index}",
+                "question_text": current_q.question_text,
+                "question_type": current_q.question_type,
+                "difficulty_level": current_q.difficulty_level,
+                "expected_duration": current_q.expected_duration,
+                "order_index": current_index + 1
+            },
+            "progress": {
+                "current": current_index + 1,
+                "total": len(questions),
+                "percentage": round((current_index + 1) / len(questions) * 100) if questions else 0
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{interview_id}/navigate-question")
+async def navigate_question(
+    interview_id: str,
+    navigation: dict,
+    current_user = Depends(get_current_user)
+):
+    """
+    Navigate between questions (next, previous, goto).
+    Used by AI agent to control interview flow.
+    """
+    interview_service = InterviewService()
+    try:
+        session_data = interview_service.active_interviews.get(interview_id)
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Interview session not found")
+        
+        action = navigation.get("action", "next")
+        current_index = session_data.get("current_question_index", 0)
+        questions = session_data.get("questions", [])
+        
+        if action == "next":
+            new_index = min(current_index + 1, len(questions))
+        elif action == "previous":
+            new_index = max(current_index - 1, 0)
+        elif action == "goto":
+            target = navigation.get("question_index", current_index)
+            new_index = max(0, min(target, len(questions) - 1))
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+        
+        # Update the index
+        session_data["current_question_index"] = new_index
+        
+        # Get the new question
+        if new_index < len(questions):
+            new_question = questions[new_index]
+            return {
+                "success": True,
+                "action": action,
+                "new_index": new_index,
+                "question": {
+                    "id": f"temp_{interview_id}_{new_index}",
+                    "question_text": new_question.question_text,
+                    "question_type": new_question.question_type,
+                    "difficulty_level": new_question.difficulty_level,
+                    "order_index": new_index + 1,
+                    "total_questions": len(questions)
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "action": action,
+                "message": "No more questions",
+                "completed": True
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

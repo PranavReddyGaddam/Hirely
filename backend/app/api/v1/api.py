@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, interviews, analysis, chroma, scraper, elevenlabs, cv_tracking, video_analysis, video_upload, interview_analysis, job_analysis  # voice disabled - missing vapi dependency
+from app.api.v1.endpoints import auth, users, interviews, analysis, chroma, scraper, elevenlabs, cv_tracking, video_analysis, video_upload, interview_analysis  # voice disabled - missing vapi dependency
 
 api_router = APIRouter()
 
@@ -16,4 +16,3 @@ api_router.include_router(cv_tracking.router, tags=["cv-tracking"])
 api_router.include_router(video_analysis.router, tags=["video-analysis"])
 api_router.include_router(video_upload.router, prefix="/video", tags=["video-upload"])
 api_router.include_router(interview_analysis.router, prefix="/interview-analysis", tags=["interview-analysis"])
-api_router.include_router(job_analysis.router, prefix="/job-analysis", tags=["job-analysis"])
